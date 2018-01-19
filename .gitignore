@@ -1,0 +1,13 @@
+.idea/
+dist/
+build/
+src/
+env/
+__pycache__/
+.DS_Store
+*.pyc
+*.egg-info
+*.swp
+*.swo
+.env
+tags
