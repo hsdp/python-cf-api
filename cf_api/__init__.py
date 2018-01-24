@@ -84,7 +84,7 @@ class CloudControllerRequest(Request):
         else:
             qlist = [str(s) for s in qlist]
             qlist = [('q', ':'.join(qlist[i:i+2]))
-                     for i in xrange(0, len(qlist), 2)]
+                     for i in range(0, len(qlist), 2)]
             return self.set_query(*qlist, **qdict).get()
 
 

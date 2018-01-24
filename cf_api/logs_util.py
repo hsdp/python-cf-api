@@ -2,7 +2,9 @@ from __future__ import print_function
 import os
 import sys
 import threading
-from dropsonde_util import DopplerEnvelope
+
+from .dropsonde_util import DopplerEnvelope
+from . import deploy_space
 from uuid import uuid4
 
 
@@ -40,7 +42,6 @@ class TailThread(object):
 if __name__ == "__main__":
     import argparse
     import cf_api
-    import deploy_space
     from getpass import getpass
 
     def main():

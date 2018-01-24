@@ -1,9 +1,12 @@
-from urlparse import urlparse
 import json
 import re
 import cf_api
 from . import exceptions as exc
 
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
 
 _app_to_fqdns = {}
 _url_to_routes = {}

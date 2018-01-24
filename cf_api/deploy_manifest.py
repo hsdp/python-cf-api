@@ -14,9 +14,9 @@ import yaml
 import logging
 import signal
 import traceback
-import __init__ as cf_api
 from getpass import getpass
 from uuid import uuid4
+from . import __init__ as cf_api
 from . import logs_util
 from . import routes_util
 from . import dropsonde_util
