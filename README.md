@@ -4,7 +4,7 @@ This module provides a pure Python interface to the Cloud Foundry APIs.
 
 ## Documentation
 
-See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](tree/master/docs) directory and the [./examples](tree/master/examples) directory.
+See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](docs) directory and the [./examples](examples) directory.
 
 ## Getting Started
 
