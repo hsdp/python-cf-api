@@ -2,6 +2,10 @@
 
 This module provides a pure Python interface to the Cloud Foundry APIs.
 
+## Documentation
+
+See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](tree/master/docs) directory and the [./examples](tree/master/examples) directory.
+
 ## Getting Started
 
 The following examples should be enough to get you started using this library.
@@ -378,103 +382,6 @@ finally:
     ws.close()
 ```
 
-## Documentation
-
-### Module
-
-| Function | Description |
-| --- | --- |
-| decode_jwt() | Decodes a UAA access token (which are in JWT format) |
-| new_cloud_controller() | Creates a new instance of the `CloudController` class |
-| new_uaa() | Creates a new instance of the `UAA` class |
-
-### Classes
-
-#### CloudController
-
-This class provides the primary interface to the Cloud Controller API.
-See the [Cloud Controller docs](http://apidocs.cloudfoundry.org) for a 
-complete list of APIs.
-
-| Function | Description |
-| --- | --- |
-| update_tokens(res) | Updates the bearer token on this instance |
-| info() | Returns basic Cloud Foundry info |
-| apps() | Build a request for /apps/... endpoint |
-| app_usage_events() | Build a request for /app_usage_events/... endpoint |
-| service_instances() | Build a request for /service_instances/... endpoint |
-| services() | Build a request for /services/... endpoint |
-| blobstores() | Build a request for /blobstores/... endpoint |
-| buildpacks() | Build a request for /buildpacks/... endpoint |
-| events() | Build a request for /events/... endpoint |
-| quota_definitions() | Build a request for /quota_definitions/... endpoint |
-| organizations() | Build a request for /organizations/... endpoint |
-| routes() | Build a request for /routes/... endpoint |
-| security_groups() | Build a request for /security_groups/... endpoint |
-| service_bindings() | Build a request for /service_bindings/... endpoint |
-| service_brokers() | Build a request for /service_brokers/... endpoint |
-| service_plan_visibilities() | Build a request for /service_plan_visibilities/... endpoint |
-| service_plans() | Build a request for /service_plans/... endpoint |
-| shared_domains() | Build a request for /shared_domains/... endpoint |
-| space_quota_definitions() | Build a request for /space_quota_definitions/... endpoint |
-| spaces() | Build a request for /spaces/... endpoint |
-| stacks() | Build a request for /stacks/... endpoint |
-| users() | Build a request for /users/... endpoint |
-| resource_match() | Build a request for /resource_match endpoint |
-
-#### UAA
-
-This class provides the primary interface to the UAA API. See the
-[UAA docs](https://docs.cloudfoundry.org/api/uaa/) for a complete list of APIs.
-
-| Function | Description |
-| --- | --- |
-| set_client_credentials(client_id, client_secret) | Sets the client ID and secret for this instance in order to make future requests |
-| set_refresh_token(token) | Stores the refresh token in order to be able to easily refresh the access token |
-| update_tokens(res) | Accepts a `Response` object and checks for errors and if none are found sets the access token and refresh token on this instance |
-| with_authorization() | Executes /oauth/token with grant type `client_credentials` |
-| password_grant(username, password) | Executes /oauth/token with grant type `password` |
-| refresh_token() | Executes /oauth/token with grant type `refresh_token` |
-
-#### CloudControllerRequest
-
-This class represents a `CloudController` request and is a subclass of `Request`.
-
-| Function | Description |
-| --- | --- |
-| get_by_name() | Sets the `q` query parameter with the filter `name:value` by default. This is the format expected by most resource list API requests to the Cloud Controller |
-
-#### CloudControllerResponse
-
-This class represents a `CloudController` response and inherits from `Response`.
-
-| Attributes | Description |
-| --- | --- |
-| error_message | Gets the error message if there is one |
-| error_code | Gets the error code if there is one |
-| resources | Gets the `resources` list of results if there is one |
-| resource | If the response is a `resources` list, this returns the first resource, else it returns the main body (which in most cases is a resource) |
-
-#### Resource
-
-This class represents an item returned within the response body of a 
-`CloudControllerRequest`.
-
-| Attributes | Description |
-| --- | --- |
-| guid | Gets the resource's GUID |
-| name | Gets the resource's name (if it has one) |
-| org_guid | Gets the resource's org GUID (if it has one) |
-| space_guid | Gets the resource's space GUID (if it has one) |
-| spaces_url | Gets the resource's spaces URL (if it has one) |
-| routes_url | Gets the resource's routes URL (if it has one) |
-| stack_url | Gets the resource's stack URL (if it has one) |
-| service_bindings_url | Gets the resource's service bindings URL (if it has one) |
-| apps_url | Gets the resource's apps URL (if it has one) |
-| service_instances_url | Gets the resource's service instances URL (if it has one) |
-| organization_url | Gets the resource's organization URL (if it has one) |
-| apps_url | Gets the resource's apps URL (if it has one) |
-
 ## TODO
 
 ### v1.x plans
@@ -485,3 +392,4 @@ This class represents an item returned within the response body of a
 - Rename `deploy_service` to `service` and `deploy_service.DeployService` to `service.Service`
 - Rename `deploy_space` to `space`
 - Simplify `cf_api.new_uaa()` by removing functionality to initialize from Cloud Controller URL as well as UAA URL; consider always requiring a `cc` instance to initialize
+- Remove dependency on `PyJWT` if possible, to remove the sub-dependency on `cryptography` which slows down the package install.
