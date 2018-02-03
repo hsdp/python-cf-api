@@ -393,3 +393,5 @@ finally:
 - Rename `deploy_space` to `space`
 - Simplify `cf_api.new_uaa()` by removing functionality to initialize from Cloud Controller URL as well as UAA URL; consider always requiring a `cc` instance to initialize
 - Remove dependency on `PyJWT` if possible, to remove the sub-dependency on `cryptography` which slows down the package install.
+- Full support for Python 3
+- Consider moving helper modules like `deploy_manifest`, `deploy_service`, and `deploy_blue_green` into a separate package.
