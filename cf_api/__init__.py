@@ -4,7 +4,7 @@ import os
 import re
 import time
 import traceback
-from cf_api import exceptions as exc
+from . import exceptions as exc
 from requests_factory import Request
 from requests_factory import Response
 from requests_factory import RequestFactory

@@ -1,9 +1,9 @@
 from __future__ import print_function
-import cf_api
 from getpass import getpass
 import argparse
 import time
 import sys
+from . import __init__ as cf_api
 from . import exceptions as exc
 
 

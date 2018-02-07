@@ -2,10 +2,8 @@ from __future__ import print_function
 import os
 import sys
 import threading
-
-from .dropsonde_util import DopplerEnvelope
-from . import deploy_space
 from uuid import uuid4
+from .dropsonde_util import DopplerEnvelope
 
 
 class TailThread(object):
@@ -136,6 +134,7 @@ if __name__ == "__main__":
             if not args.org or not args.space or not args.app:
                 raise Exception('Org, space, and app are required')
 
+            from . import deploy_space
             space = deploy_space.Space(
                 cc,
                 org_name=args.org,

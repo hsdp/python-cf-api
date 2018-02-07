@@ -2,7 +2,7 @@ from __future__ import print_function
 import json
 from . import deploy_manifest
 from . import deploy_service
-from cf_api import exceptions as exc
+from . import exceptions as exc
 
 
 class Space(object):

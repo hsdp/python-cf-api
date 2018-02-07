@@ -1,5 +1,5 @@
 import os
-from deploy_manifest import log
+from .deploy_manifest import log
 from . import exceptions as exc
 
 
