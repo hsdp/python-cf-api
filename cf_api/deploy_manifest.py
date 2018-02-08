@@ -353,7 +353,9 @@ class Deploy(object):
                 domain_name = domain.name
             domain_guid = domain.guid
 
-        args = ['host', host, 'domain_guid', domain_guid]
+        args = ['domain_guid', domain_guid]
+        if not self.random_route:
+            args.extend(['host', host])
         if port is not None:
             args.extend(['port', port])
         if path is not None:
@@ -545,18 +547,26 @@ class Deploy(object):
         if not self.no_route:
 
             if not self.routes:
-                if self.host or not self.hosts:
-                    host = self.host or self.name
-                    route = self._create_route(host, primary_route=new_app)
-
-                    if bind_routes:
-                        self._bind_route(route, primary_route=new_app)
-
+                hosts = []
                 if self.hosts:
-                    for host in self.hosts:
-                        route = self._create_route(host)
-                        if bind_routes:
-                            self._bind_route(route)
+                    if self.host:
+                        hosts.append(self.host)
+                    hosts.extend(self.hosts)
+                elif self.host:
+                    hosts.append(self.host)
+                else:
+                    routes = self._cc.request(self._app.routes_url)\
+                            .get().resources
+                    if not routes:
+                        host = self.name
+                        if self.random_route:
+                            host += '-' + rand(8)
+                        hosts.append(host)
+
+                for host in hosts:
+                    route = self._create_route(host)
+                    if bind_routes:
+                        self._bind_route(route)
 
             else:
                 for route in self.routes:
@@ -564,21 +574,20 @@ class Deploy(object):
                     if bind_routes:
                         self._bind_route(route)
 
-    def _create_route_from_entry(self, route, primary_route=False):
+    def _create_route_from_entry(self, route):
         host, domain_name, port, path = routes_util.decompose_route(
                 route['route'])
         return self._create_route(
-                host, primary_route=primary_route,
+                host,
                 domain_name=domain_name, path=path, port=port,
         )
 
-    def _create_route(self, host, primary_route=True,
-                      domain_name=None, path='', port=None):
+    def _create_route(self, host, domain_name=None, path='', port=None):
         """Creates an individual hostname attached to the domain. If this is
         a primary route (i.e. `name`, `host`) then the `random-route` manifest
         attribute will be applied.
         """
-        self.log('creating route', host, 'primary=' + str(primary_route))
+        self.log('creating route', host)
 
         host = sanitize_domain(host)
         if domain_name is not None:
@@ -596,34 +605,28 @@ class Deploy(object):
         if port is not None:
             p['port'] = port
 
-        if primary_route and self.random_route and not self.routes:
-            # if we have a primary route and `random-route` is specified, then
-            # append a random segment to the hostname
-            p['host'] += '-' + rand(8)
-
-        else:
-            routes = self._search_routes(
-                self._space.routes_url,
-                host=host,
-                domain_name=domain_name,
-                port=port,
-                path=path)
-            if routes:
-                self.log('route exists, skipping', host)
-                return routes[0]
+        routes = self._search_routes(
+            self._space.routes_url,
+            host=host,
+            domain_name=domain_name,
+            port=port,
+            path=path)
+        if routes:
+            self.log('route exists, skipping', host)
+            return routes[0]
 
         res = self._cc.routes().set_params(**p).post()
         self._assert_no_error(res)
         return res.resource
 
-    def _bind_route(self, route, primary_route=True):
+    def _bind_route(self, route):
         """Binds a route to the current app.
-        host, route_guid, domain_guid=None,
-                    primary_route=True
+        host, route_guid, domain_guid=None
         """
+        if route is None:
+            return
 
-        self.log('binding route', route.host,
-                 'primary=' + str(primary_route))
+        self.log('binding route', route.host)
         route_guid = route.guid
         search = {'host': route.host,
                   'port': route.port,
@@ -632,11 +635,10 @@ class Deploy(object):
 
         routes = self._search_routes(self._app.routes_url, **search)
         if routes:
-            return routes[0]
+            return
 
         res = self._cc.request(self._app.routes_url, route_guid).put()
         self._assert_no_error(res)
-        return res.resource
 
     def _unbind_routes(self, destroy_routes=True):
         """Unbinds routes from this app. This will also destroy the routes
