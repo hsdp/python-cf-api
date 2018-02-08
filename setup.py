@@ -12,7 +12,7 @@ setup(
     version=__version__,
     description='Python Interface for Cloud Foundry APIs',
     long_description=open('README.md').read(),
-    license=open('LICENSE').read(),
+    license='Apache License Version 2.0',
     author='Adam Jaso',
     author_email='ajaso@hsdp.io',
     packages=['cf_api', 'cf_api.dropsonde'],
