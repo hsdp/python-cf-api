@@ -1026,16 +1026,19 @@ class UAA(RequestFactory):
             response_type=response_type,
             client_id=self._client_id,
         )
+        query = [(k, v) for k, v in kwargs.items()]
+        query.extend([('response_type', response_type),
+                      ('client_id', self._client_id)])
         if isinstance(scope, string_types):
             scope = [scope]
         if isinstance(scope, list):
-            kwargs['scope'] = '+'.join(scope)
+            query.append(('scope', '+'.join(scope)))
         if redirect_uri is not None:
-            kwargs['redirect_uri'] = redirect_uri
+            query.append(('redirect_uri', redirect_uri))
         if state is not None:
-            kwargs['state'] = state
+            query.append(('state', state))
 
-        return '?'.join([self.get_url('oauth/authorize'), urlencode(kwargs)])
+        return '?'.join([self.get_url('oauth/authorize'), urlencode(query)])
 
     def verify_token(self, token, **decode_kwargs):
         """Verifies the OAuth2 Token (or ID Token) using the client's public

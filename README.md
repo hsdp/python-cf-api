@@ -2,6 +2,14 @@
 
 This module provides a pure Python interface to the Cloud Foundry APIs.
 
+## Installation
+
+You can install from PIP
+
+`pip install cf-api`
+
+or view it on [PyPI](https://pypi.python.org/pypi/cf_api).
+
 ## Documentation
 
 See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](docs) directory and the [./examples](examples) directory.
