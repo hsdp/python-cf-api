@@ -249,6 +249,7 @@ class RefreshTokens(TestCase):
     def test_refresh_tokens_callback(self):
         orig_token = make_uaa_oauth_token(2)
         refreshed_token = make_uaa_oauth_token(2)
+        self.assertNotEqual(orig_token['access_token'], refreshed_token['access_token'])
         prepare_request(cc_api_url, 'GET', 'info', body=cc_v2_info)
         prepare_request(uaa_api_url, 'POST', 'oauth/token', body=orig_token, version=None)
         prepare_request(cc_api_url, 'GET', 'apps')
