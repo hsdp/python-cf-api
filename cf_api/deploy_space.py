@@ -221,32 +221,55 @@ class Space(object):
         return [m.destroy(destroy_routes)
                 for m in self.get_deploy_manifest(manifest_filename)]
 
-    def get_blue_green(self, manifest_filename, **kwargs):
+    def get_blue_green(self, manifest_filename, interval=20, timeout=300,
+                       tailing=None, **kwargs):
         """Parses the manifest and searches for ``app_name``, returning an
         instance of the BlueGreen deployer object.
 
         Args:
             manifest_filename (str)
+            interval (int)
+            timeout (int)
+            tailing (bool)
             **kwargs (dict): are passed along to the BlueGreen constructor
 
         Returns:
             list[cf_api.deploy_blue_green.BlueGreen]
         """
         from deploy_blue_green import BlueGreen
+        if tailing is not None:
+            kwargs['verbose'] = tailing
+        elif 'verbose' not in kwargs:
+            kwargs['verbose'] = self._debug
+        kwargs['wait_kwargs'] = {'interval': interval, 'timeout': timeout}
         return BlueGreen.parse_manifest(self, manifest_filename, **kwargs)
 
     def deploy_blue_green(self, manifest_filename, **kwargs):
-        """Deploys the application in from the given manifest using the
+        """Deploys the application from the given manifest using the
         BlueGreen deployment strategy
 
         Args:
             manifest_filename (str)
-            **kwargs (dict): are passed along to the BlueGreen constructor
+            **kwargs (dict): are passed along to self.get_blue_green
 
         Returns:
             list
         """
-        return [m.deploy()
+        return [m.deploy_app()
+                for m in self.get_blue_green(manifest_filename, **kwargs)]
+
+    def wait_blue_green(self, manifest_filename, **kwargs):
+        """Waits for the application to start, from the given manifest using
+        the BlueGreen deployment strategy
+
+        Args:
+            manifest_filename (str)
+            **kwargs (dict): are passed along to self.get_blue_green
+
+        Returns:
+            list
+        """
+        return [m.wait_and_cleanup()
                 for m in self.get_blue_green(manifest_filename, **kwargs)]
 
     def get_service_instance_by_name(self, name):

@@ -153,9 +153,7 @@ class BlueGreen(object):
             self._rename_app()
             self.log('OK')
 
-        self.log('Pushing app...')
         self.manifest.push()
-        self.log('OK')
 
     def deploy(self):
         """Deploy the new application, wait for it to start, then clean up the
@@ -189,11 +187,11 @@ def main():
         kwargs['refresh_token'] = os.getenv('REFRESH_TOKEN', '')
 
     cc = cf_api.new_cloud_controller(args.cloud_controller, **kwargs)
-    space = Space(cc, org_name=args.org, space_name=args.space)
-    manifests = BlueGreen.parse_manifest(
-        space, args.manifest, verbose=True, wait_kwargs=dict(interval=5))
-    for manifest in manifests:
-        manifest.deploy()
+    space = Space(cc, org_name=args.org, space_name=args.space).set_debug(True)
+    for manifest in space.deploy_blue_green(args.manifest):
+        pass
+    for manifest in space.wait_blue_green(args.manifest):
+        pass
 
 
 if '__main__' == __name__:
