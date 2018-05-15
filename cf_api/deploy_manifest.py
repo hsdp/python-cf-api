@@ -16,7 +16,7 @@ import signal
 import traceback
 from getpass import getpass
 from uuid import uuid4
-from . import __init__ as cf_api
+import cf_api
 from . import logs_util
 from . import routes_util
 from . import dropsonde_util
@@ -36,7 +36,6 @@ logger = logging.getLogger('cf_api.deploy_manifest')
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 

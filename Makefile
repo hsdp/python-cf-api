@@ -1,24 +1,42 @@
-.PHONY: test deps deps-dev clean deploy
+VENV := virtualenv
 
+PY2_EXE := python
+PY2_ENV := env
+PY2_VENV := $(VENV)
+PY2_ACT := . $(PY2_ENV)/bin/activate &&
+
+PY3_EXE := python3
+PY3_ENV := env3
+PY3_VENV := $(VENV) -p python3
+PY3_ACT := . $(PY3_ENV)/bin/activate &&
+
+.PHONY: clean
 clean:
-	rm -r env || :
-	rm -r env3 || :
+	rm -r $(PY2_ENV) || :
+	rm -r $(PY3_ENV) || :
 
-deps:
-	[[ ! -f env/bin/activate ]] && virtualenv env || :
-	[[ ! -f env3/bin/activate ]] && virtualenv -p python3 env3 || :
-	. env/bin/activate && pip install -r requirements.txt ; deactivate
-	. env3/bin/activate && pip install -r requirements.txt ; deactivate
+.PHONY: install
+install:
+	[[ ! -f $(PY2_ENV)/bin/activate ]] && $(PY2_VENV) $(PY2_ENV) || :
+	[[ ! -f $(PY3_ENV)/bin/activate ]] && $(PY3_VENV) $(PY3_ENV) || :
+	$(PY2_ACT) pip --no-cache-dir install -r requirements.txt
+	$(PY3_ACT) pip --no-cache-dir install -r requirements.txt
 
-deps-dev:
-	[[ ! -f env/bin/activate ]] && virtualenv env || :
-	[[ ! -f env3/bin/activate ]] && virtualenv -p python3 env3 || :
-	. env/bin/activate && pip install -r requirements-dev.txt ; deactivate
-	. env3/bin/activate && pip install -r requirements-dev.txt ; deactivate
+.PHONY: install-dev
+install-dev: install
+	$(PY2_ACT) pip --no-cache-dir install -r requirements-dev.txt
+	$(PY3_ACT) pip --no-cache-dir install -r requirements-dev.txt
 
-test: deps deps-dev
-	. env/bin/activate && nose2 -v ; deactivate
-	. env3/bin/activate && nose2 -v ; deactivate
+.PHONY: test
+test: install-dev
+	$(PY2_ACT) nose2 -v 
+	$(PY3_ACT) nose2 -v
 
+.PHONY: example
+example:
+	$(PY2_ACT) cd examples && PYTHONPATH=.. $(PY2_EXE) $(EXAMPLE_NAME).py
+	$(PY3_ACT) cd examples && PYTHONPATH=.. $(PY3_EXE) $(EXAMPLE_NAME).py
+
+.PHONY: deploy
 deploy: clean test
 	python setup.py sdist upload --repository=https://upload.pypi.org/legacy/

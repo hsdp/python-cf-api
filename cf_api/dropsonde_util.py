@@ -1,41 +1,10 @@
 from __future__ import print_function
-
 import json
 from copy import copy
 from datetime import datetime
-
 from google.protobuf.descriptor import FieldDescriptor
-
-from dropsonde import TYPE_CALLABLE_MAP
-from dropsonde import protobuf_to_dict
-from dropsonde.envelope_pb2 import Envelope
-
-
-# BEGIN SHIM
-# this is a shim that fixes an issue in the protobuf-to-dict library
-
-type_callable_map = copy(TYPE_CALLABLE_MAP)
-type_callable_map[FieldDescriptor.TYPE_BYTES] = str
-_handle_pb_message = type_callable_map[FieldDescriptor.TYPE_MESSAGE]
-
-
-def handle_pb_message(v, **kwargs):
-    class_name = type(v).__name__
-    if "ScalarMapContainer" == class_name:
-        return dict(v.items())
-    if 'unicode' == class_name:
-        return v
-    return _handle_pb_message(v, **kwargs)
-
-
-type_callable_map[FieldDescriptor.TYPE_MESSAGE] = handle_pb_message
-protobuf_to_dict_kwargs = dict(
-    type_callable_map=type_callable_map,
-    use_enum_labels=True
-)
-
-
-# END SHIM
+from dropsonde.pb.envelope_pb2 import Envelope
+from .pb2dict import TYPE_CALLABLE_MAP, protobuf_to_dict
 
 
 def parse_envelope_protobuf(pbstr):
@@ -65,38 +34,6 @@ def format_unixnano(unixnano):
     """
     return datetime.fromtimestamp(int(unixnano / 1e6) / 1000.0)\
         .strftime('%Y-%m-%d %H:%M:%S.%f')
-
-
-def get_uuid_string(**x):
-    """This method parses a UUID protobuf message type from its component
-    'high' and 'low' longs into a standard formatted UUID string
-
-    Args:
-        x (dict): containing keys, 'low' and 'high' corresponding to the UUID
-            protobuf message type
-
-    Returns:
-        str: UUID formatted string
-    """
-    if 'low' not in x or 'high' not in x:
-        return None
-
-    # convert components to hex strings and strip off '0x'
-    l = hex(x['low'])[2:-1]
-    h = hex(x['high'])[2:-1]
-
-    # ensure we have leading 0 bytes set
-    l = ''.join(['0' * (16 - len(l)), l])
-    h = ''.join(['0' * (16 - len(h)), h])
-
-    # split/reverse/join little endian bytes
-    x = ''.join([
-        ''.join([l[i:i+2] for i in xrange(0, len(l), 2)][::-1]),
-        ''.join([h[i:i+2] for i in xrange(0, len(h), 2)][::-1]),
-    ])
-
-    # create uuid formatted string
-    return '-'.join([x[:8], x[8:12], x[12:16], x[16:20], x[20:]])
 
 
 def render_log_http_start_stop(m):

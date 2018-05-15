@@ -3,7 +3,7 @@ import os
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 from . import exceptions as exc
-import __init__ as cf_api
+import cf_api
 
 
 class ProxyPolicy(MissingHostKeyPolicy):

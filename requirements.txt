@@ -2,6 +2,7 @@ six
 PyYAML
 pycrypto
 PyJWT>=1.4.2,<2.0.0
-protobuf==3.3.0
+protobuf>=3.3.0
 requests-factory>=0.1.0,<1.0.0
 paramiko
+dropsonde
