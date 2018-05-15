@@ -15,7 +15,7 @@ setup(
     license='Apache License Version 2.0',
     author='Adam Jaso',
     author_email='ajaso@hsdp.io',
-    packages=['cf_api', 'cf_api.dropsonde'],
+    packages=['cf_api'],
     package_dir={
         'cf_api': 'cf_api',
     },

@@ -1,4 +1,5 @@
 VENV := virtualenv
+PIPNOCACHE := --no-cache-dir
 
 PY2_EXE := python
 PY2_ENV := env
@@ -19,13 +20,13 @@ clean:
 install:
 	[[ ! -f $(PY2_ENV)/bin/activate ]] && $(PY2_VENV) $(PY2_ENV) || :
 	[[ ! -f $(PY3_ENV)/bin/activate ]] && $(PY3_VENV) $(PY3_ENV) || :
-	$(PY2_ACT) pip --no-cache-dir install -r requirements.txt
-	$(PY3_ACT) pip --no-cache-dir install -r requirements.txt
+	$(PY2_ACT) pip $(PIPNOCACHE) install -r requirements.txt
+	$(PY3_ACT) pip $(PIPNOCACHE) install -r requirements.txt
 
 .PHONY: install-dev
 install-dev: install
-	$(PY2_ACT) pip --no-cache-dir install -r requirements-dev.txt
-	$(PY3_ACT) pip --no-cache-dir install -r requirements-dev.txt
+	$(PY2_ACT) pip $(PIPNOCACHE) install -r requirements-dev.txt
+	$(PY3_ACT) pip $(PIPNOCACHE) install -r requirements-dev.txt
 
 .PHONY: test
 test: install-dev
