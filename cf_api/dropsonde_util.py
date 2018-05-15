@@ -1,4 +1,5 @@
 from __future__ import print_function
+import six
 import json
 from copy import copy
 from datetime import datetime
@@ -7,19 +8,28 @@ from dropsonde.pb.envelope_pb2 import Envelope
 from .pb2dict import TYPE_CALLABLE_MAP, protobuf_to_dict
 
 
+def _json_encoder(o):
+    if isinstance(o, six.binary_type):
+        return o.decode('utf-8')
+    elif isinstance(o, six.string_types):
+        return str(o)
+    else:
+        return o.__dict__
+
+
 def parse_envelope_protobuf(pbstr):
     """Parses a protocol buffers string into a dictionary representing a
     Dropsonde Envelope protobuf message type
 
     Args:
-        pbstr (basestring): protocol buffers string
+        pbstr (six.binary_type): protocol buffers string
 
     Returns:
         dict
     """
     env = Envelope()
     env.ParseFromString(pbstr)
-    env = protobuf_to_dict(env, **protobuf_to_dict_kwargs)
+    env = protobuf_to_dict(env)
     return env
 
 
@@ -116,7 +126,7 @@ class DopplerEnvelope(dict):
         elif self.is_event_type('CounterEvent'):
             return json.dumps(self['counterEvent'])
         else:
-            return json.dumps(self)
+            return json.dumps(self, default=_json_encoder)
 
     @property
     def request_id(self):
@@ -147,7 +157,7 @@ class DopplerEnvelope(dict):
         """Parses a protobuf string into an Envelope dictionary
 
         Args:
-            pbstr (basestring)
+            pbstr (str)
 
         Returns:
             DopplerEnvelope|None: if a falsy value is passed in, None is
@@ -155,6 +165,6 @@ class DopplerEnvelope(dict):
         """
         if not pbstr:
             return None
-        if isinstance(pbstr, basestring):
+        if isinstance(pbstr, (six.text_type, six.binary_type)):
             pbstr = parse_envelope_protobuf(pbstr)
         return DopplerEnvelope(pbstr)
