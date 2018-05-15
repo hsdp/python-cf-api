@@ -36,7 +36,6 @@ logger = logging.getLogger('cf_api.deploy_manifest')
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
