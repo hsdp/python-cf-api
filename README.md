@@ -14,6 +14,15 @@ or view it on [PyPI](https://pypi.python.org/pypi/cf_api).
 
 See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](docs) directory and the [./examples](examples) directory.
 
+## Versioning
+
+*Version 1.x*
+- Supports both Python 2.7/3.6
+- Removed `cf_api.dropsonde` module in favor of the `dropsonde` module.
+
+*Version 0.x*
+- Supports Python 2.7
+
 ## Getting Started
 
 The following examples should be enough to get you started using this library.

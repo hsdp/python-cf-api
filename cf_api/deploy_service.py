@@ -1,9 +1,10 @@
 from __future__ import print_function
-from getpass import getpass
-import argparse
-import time
+import os
 import sys
+import time
 import cf_api
+import argparse
+from getpass import getpass
 from . import exceptions as exc
 
 
@@ -361,7 +362,7 @@ if '__main__' == __name__:
             help='The Cloud Controller API endpoint '
                  '(excluding leading slashes)')
         args.add_argument(
-            '-u', '--user', dest='user', required=True,
+            '-u', '--user', dest='user',
             help='The user to use for the deployment')
         args.add_argument(
             '-o', '--org', dest='org', required=True,
@@ -382,7 +383,7 @@ if '__main__' == __name__:
             '--service-plan', dest='service_plan', required=True,
             help='Service plan to be deployed')
         args.add_argument(
-            '-a', '--action', dest='action',
+            '-a', '--action', dest='action', choices=['create', 'destroy'],
             help='Service action to be executed. Only `create\' and '
                  '`destroy\' are supported values')
         args.add_argument(
@@ -410,13 +411,23 @@ if '__main__' == __name__:
                  'the deployment execution')
         args = args.parse_args()
 
+        if args.user:
+            username = args.user
+            password = getpass('Password: ').strip()
+            refresh_token = None
+        else:
+            username = None
+            password = None
+            refresh_token = os.getenv('CF_REFRESH_TOKEN')
+
         cc = cf_api.new_cloud_controller(
             args.cloud_controller,
-            username=args.user,
-            password=getpass('Password: ').strip(),
+            username=username,
+            password=password,
+            refresh_token=refresh_token,
             client_id='cf',
             client_secret='',
-            verify_ssl=not args.skip_ssl
+            verify_ssl=not args.skip_ssl,
         )
 
         service_name = args.name

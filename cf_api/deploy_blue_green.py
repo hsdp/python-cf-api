@@ -166,8 +166,8 @@ class BlueGreen(object):
 def main():
     import argparse
     from getpass import getpass
-    from deploy_space import Space
-    import __init__ as cf_api
+    from .deploy_space import Space
+    import cf_api
     args = argparse.ArgumentParser()
     args.add_argument('--cloud-controller', required=True)
     args.add_argument('-u', '--user')
@@ -184,7 +184,7 @@ def main():
         kwargs['username'] = args.user
         kwargs['password'] = getpass()
     else:
-        kwargs['refresh_token'] = os.getenv('REFRESH_TOKEN', '')
+        kwargs['refresh_token'] = os.getenv('CF_REFRESH_TOKEN', '')
 
     cc = cf_api.new_cloud_controller(args.cloud_controller, **kwargs)
     space = Space(cc, org_name=args.org, space_name=args.space).set_debug(True)

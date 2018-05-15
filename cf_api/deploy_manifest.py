@@ -1027,7 +1027,7 @@ class Deploy(object):
         todo = {app.name: app for app in deploys}
         t = time.time()
         while len(todo) > 0:
-            for app in todo.values():
+            for app in [v for v in todo.values()]:
                 app.log('checking if ', app.name, 'is up...')
                 app_ = app._get_app(use_cache=False)
                 if not app_:
@@ -1331,7 +1331,7 @@ if '__main__' == __name__:
             m.set_org_and_space(args.org, args.space)
 
             if args.destroy:
-                if raw_input('Destroying app {0}. Are you sure? (y/n) '
+                if six.input('Destroying app {0}. Are you sure? (y/n) '
                              .format(m.name)) == 'y':
                     m.destroy(args.destroy_routes)
                 else:

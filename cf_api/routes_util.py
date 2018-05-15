@@ -1,5 +1,6 @@
-import json
+import os
 import re
+import json
 import cf_api
 from . import exceptions as exc
 
@@ -289,7 +290,7 @@ if '__main__' == __name__:
             help='The Cloud Controller API endpoint '
                  '(excluding leading slashes)')
         args.add_argument(
-            '-u', '--user', dest='user', required=True,
+            '-u', '--user', dest='user',
             help='The user used to authenticate. This may be omitted '
                  'if --client-id and --client-secret have sufficient '
                  'authorization to perform the desired request without a '
@@ -323,10 +324,20 @@ if '__main__' == __name__:
             help='URLs to be looked up to find their routes/apps')
         args = args.parse_args()
 
+        if args.user:
+            username = args.user
+            password = getpass().strip()
+            refresh_token = None
+        else:
+            username = None
+            password = None
+            refresh_token = os.getenv('CF_REFRESH_TOKEN')
+
         cc = cf_api.new_cloud_controller(
             args.cloud_controller,
-            username=args.user,
-            password=getpass().strip() if args.user is not None else None,
+            username=username,
+            password=password,
+            refresh_token=refresh_token,
             client_id=args.client_id,
             client_secret=args.client_secret,
             verify_ssl=not args.skip_ssl

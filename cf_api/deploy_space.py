@@ -236,7 +236,7 @@ class Space(object):
         Returns:
             list[cf_api.deploy_blue_green.BlueGreen]
         """
-        from deploy_blue_green import BlueGreen
+        from .deploy_blue_green import BlueGreen
         if tailing is not None:
             kwargs['verbose'] = tailing
         elif 'verbose' not in kwargs:

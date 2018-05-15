@@ -77,7 +77,7 @@ if '__main__' == __name__:
         args.add_argument('-c', '--command', dest='command', required=True)
         args.add_argument('--stderr', action='store_true', required=False)
         args = args.parse_args()
-        rt = os.getenv('REFRESH_TOKEN')
+        rt = os.getenv('CF_REFRESH_TOKEN')
         cc = cf_api.new_cloud_controller(
             args.cloud_controller,
             refresh_token=rt,

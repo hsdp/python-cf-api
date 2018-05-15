@@ -77,6 +77,7 @@ class DopplerEnvelope(dict):
     """
     def __init__(self, pbstr):
         super(DopplerEnvelope, self).__init__(**pbstr)
+        self['eventType'] = Envelope.EventType.Name(self['eventType'])
 
     def __getattr__(self, item):
         return self.get(item, None)
@@ -92,7 +93,7 @@ class DopplerEnvelope(dict):
                 str(self['deployment']),
                 format_unixnano(self['timestamp'])]),
             ' ]:  ',
-            str(self.message)
+            self.message
         ])
 
     def __repr__(self):
@@ -118,7 +119,11 @@ class DopplerEnvelope(dict):
         if self.is_event_type('HttpStartStop'):
             return str(render_log_http_start_stop(self))
         elif self.is_event_type('LogMessage'):
-            return self.get('logMessage', {}).get('message', '')
+            msg = self.get('logMessage', {}).get('message', '')
+            try:
+                return msg.decode('utf-8')
+            except:
+                return str(msg)
         elif self.is_event_type('ValueMetric'):
             return json.dumps(self['valueMetric'])
         elif self.is_event_type('ContainerMetric'):
