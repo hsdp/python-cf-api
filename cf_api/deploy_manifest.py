@@ -352,9 +352,7 @@ class Deploy(object):
                 domain_name = domain.name
             domain_guid = domain.guid
 
-        args = ['domain_guid', domain_guid]
-        if not self.random_route:
-            args.extend(['host', host])
+        args = ['domain_guid', domain_guid, 'host', host]
         if port is not None:
             args.extend(['port', port])
         if path is not None:
