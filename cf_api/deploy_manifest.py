@@ -1167,7 +1167,7 @@ def file_sha1(filename):
     """
     if os.path.isdir(filename):
         return '0'
-    with open(filename, 'r') as f:
+    with open(filename, 'rb') as f:
         return hashlib.sha1(f.read()).hexdigest()
 
 
@@ -1213,7 +1213,7 @@ def format_route(**route):
 
 
 def rand(n):
-    rand_chars = ''.join([string.digits, string.lowercase])
+    rand_chars = ''.join([string.digits, string.ascii_lowercase])
     return ''.join(random.sample(rand_chars, n))
 
 
