@@ -114,6 +114,112 @@ relations_tree = {
     ],
 }
 
+relations_tree_v3 = {
+    'apps': {
+        'relationships': [
+            'space',
+        ],
+        'links': [
+            'space',
+            'processes',
+            'packages',
+            'route_mappings',
+            'environment_variables',
+            'droplets',
+            'tasks',
+        ]
+    },
+    'builds': {
+        'toplevel': [
+            'package',
+            'droplet',
+        ],
+        'links': [
+            'build',
+            'app',
+        ],
+    },
+    'buildpacks': {
+        'links': [
+            'upload',
+        ]
+    },
+    'domains': {
+        'relationships': [
+            'organizations',
+        ],
+        'links': [
+            'organization',
+        ],
+    },
+    'droplets': {
+        'links': [
+            'package',
+            'app',
+        ]
+    },
+    'isolation_segments': {
+        'links': [
+            'organizations',
+        ],
+    },
+    'jobs': {},
+    'organizations': {
+        'links': [
+            'domains',
+        ],
+    },
+    'packages': {},
+    'processes': {
+        'relationships': [
+            'app',
+            'revision',
+        ],
+        'links': [
+            'app',
+            'space',
+            'stats'
+        ]
+    },
+    'routes': {
+        'relationships': [
+            'space',
+            'domain',
+        ],
+        'links': [
+            'space',
+            'domain',
+            'destinations',
+        ],
+    },
+    'service_instances': {
+        'relationships': [
+            'space',
+        ],
+        'links': [
+            'space',
+        ],
+    },
+    'spaces': {
+        'relationships': [
+            'organization',
+        ],
+        'links': [
+            'organization',
+        ],
+    },
+    'stacks': {},
+    'tasks': {
+        'relationships': [
+            'app',
+        ],
+        'links': [
+            'app',
+            'droplet',
+        ],
+    },
+}
+
 
 cc_v2_info = {
     "token_endpoint": uaa_api_url,
@@ -146,6 +252,13 @@ def make_uaa_oauth_token(ttl):
 
 
 def make_response(version, endpoint):
+    if version == 3:
+        return make_response_v3(version, endpoint)
+    else:
+        return make_response_v2(version, endpoint)
+
+
+def make_response_v2(version, endpoint):
     uuid = str(uuid4())
     version = 'v' + str(version)
     name = 'my-name-' + uuid
@@ -171,6 +284,33 @@ def make_response(version, endpoint):
     return res
 
 
+def make_response_v3(version, endpoint):
+    uuid = str(uuid4())
+    version = 'v' + str(version)
+    name = 'my-name-' + uuid
+    res = {
+        'guid': uuid,
+        'name': name,
+        'state': 'STARTED',
+        'stack': 'my-stack',
+        'relationships': {},
+        'links': {
+            'self': {
+                'href': '/'.join([cc_api_url, version, endpoint, uuid]),
+            },
+        },
+    }
+    for relation in relations_tree_v3[endpoint]['links']:
+        if relation.endswith('s') and not relation.endswith('ss'):
+            link = '/'.join([cc_api_url, version, endpoint, uuid, relation])
+        else:
+            link = '/'.join([cc_api_url, version, relation + 's', uuid])
+        res['links'][relation] = {'href': link}
+    for relation in relations_tree_v3[endpoint]['relationships']:
+        res['relationships'][relation] = {'data': {'guid': uuid}}
+    return res
+
+
 def make_response_list(version, endpoint, n, **extras):
     res = {
         'resources': [
@@ -182,13 +322,28 @@ def make_response_list(version, endpoint, n, **extras):
     return res
 
 
-def prepare_request(cc, method, endpoint, guid1=None, relation=None, guid2=None, status=200, version=2, n=1, body=None):
-    url = [endpoint]
-    if status < 200 or status >= 300:
-        res = {
+def make_error(version, status):
+    if version == 3:
+        return {
+            'errors': [
+                {
+                    'code': status,
+                    'title': 'CF-ErrorCode',
+                    'detail': 'an error occurred ({0})'.format(status)
+                }
+            ],
+        }
+    else:
+        return {
             'error_code': str(status),
             'error_description': 'an error occurred ({0})'.format(status),
         }
+
+
+def prepare_request(cc, method, endpoint, guid1=None, relation=None, guid2=None, status=200, version=2, n=1, body=None, next_url_path=None):
+    url = [endpoint]
+    if status < 200 or status >= 300:
+        res = make_error(version, status)
     elif body:
         res = body
     elif guid1 is None and relation is None and guid2 is None:
@@ -204,6 +359,15 @@ def prepare_request(cc, method, endpoint, guid1=None, relation=None, guid2=None,
         res = make_response(version, endpoint)
     else:
         raise Exception('invalid arguments')
+    if next_url_path is not None:
+        if version == 3:
+            res['pagination'] = {
+                'next': {
+                    'href': '/'.join([cc_api_url, next_url_path])
+                }
+            }
+        else:
+            res['next_url'] = next_url_path
     if isinstance(cc, RequestFactory):
         req = cc.request(*url).set_method(method)
         responses.add(method.upper(), req.base_url, body=json.dumps(res), status=status)

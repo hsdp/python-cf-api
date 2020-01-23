@@ -455,7 +455,7 @@ class Deploy(object):
         if not self._get_app():
             raise exc.NotFoundException('App not found', 404)
         res = self._cc.apps(self._app.guid) \
-            .set_query(async='true') \
+            .set_query(('async', 'true')) \
             .set_params(state=state).put()
         self._assert_no_error(res)
         return res.resource
@@ -509,7 +509,7 @@ class Deploy(object):
 
         with open(archive_filename, 'rb') as f:
             res = self._cc.apps(self._app.guid, 'bits') \
-                .set_query(async='true') \
+                .set_query(('async', 'true')) \
                 .add_field('resources', json.dumps(resources)) \
                 .add_file('application', 'application.zip', f,
                           'application/zip') \

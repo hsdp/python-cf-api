@@ -17,8 +17,10 @@ See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readth
 ## Versioning
 
 *Version 1.x*
-- Supports both Python 2.7/3.6
-- Removed `cf_api.dropsonde` module in favor of the `dropsonde` module.
+- Support both Python 2.7/3.6-3.8
+- Remove `cf_api.dropsonde` module in favor of the `dropsonde` module.
+- Add CF API version 3 support
+- Add `Dockerfile` example
 
 *Version 0.x*
 - Supports Python 2.7
@@ -140,6 +142,50 @@ with open(my_zipfile, 'r') as f:
         .put()
     print(res.data)
 ```
+
+## Running in Docker
+
+To get start running `cf_api` in Docker, just build the provided [Dockerfile](./Dockerfile)
+
+```
+you@yourhost:~/python-cf-api$ docker build -t python-cf-api:latest .
+```
+
+and run it using the following syntax.
+
+```
+you@yourhost:~/python-cf-api$ docker run --rm -it -v $PWD:/src -w /src python-cf-api:latest python3
+Python 3.8.1
+[GCC 9.2.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import cf_api
+>>> # play with it here
+```
+
+## Using CF API version 3
+
+The following example shows how to use the Cloud Foundry version 3 API.
+
+```python
+import cf_api
+
+cc = cf_api.new_cloud_controller()
+req = cc.v3.apps()
+res = req.get()
+print(res.resource.guid)
+```
+
+- The `cc.v3` attribute returns a `CloudController` instance that is configured
+  to wrap requests and responses in V3 compatible classes, namely `V3CloudControllerRequest`
+  and `V3CloudControllerResponse`. These objects work similarly to their v2 counterparts,
+  `CloudControllerRequest` and `CloudControllerResponse`.
+- The `V3CloudControllerResponse` provides `resource` and `resources` which return
+  an instance or list of instances of `V3Resource` objects which support the
+  common API object keys such as `name`, `guid`, `space_guid`, and `org_guid`, etc.
+- The `cc.v3.get_all_resources()` function supports both v2 and v3 pagination.
+- The `cc.v3.request()` function supports _both_ relative URLs and absolute URLs,
+  for example `/v3/apps` and `http://localhost/v3/apps`, respectively. See `request()`
+  function documentation for more information.
 
 ## Environment Variables
 
@@ -398,17 +444,3 @@ except Exception as e:
 finally:
     ws.close()
 ```
-
-## TODO
-
-### v1.x plans
-
-- Move core logic out of `__init__.py` and into a `core.py` module so that we can import `cf_api` without triggering `ImportError` due to requirements not being installed yet.
-- Make `deploy_manifest`, `deploy_service` use `deploy_space` to initialize
-- Rename `deploy_manifest` to `manifest` and `deploy_manifest.Deploy` to `manifest.Manifest`
-- Rename `deploy_service` to `service` and `deploy_service.DeployService` to `service.Service`
-- Rename `deploy_space` to `space`
-- Simplify `cf_api.new_uaa()` by removing functionality to initialize from Cloud Controller URL as well as UAA URL; consider always requiring a `cc` instance to initialize
-- Remove dependency on `PyJWT` if possible, to remove the sub-dependency on `cryptography` which slows down the package install.
-- Full support for Python 3
-- Consider moving helper modules like `deploy_manifest`, `deploy_service`, and `deploy_blue_green` into a separate package.

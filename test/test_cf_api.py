@@ -10,13 +10,13 @@ from unittest import TestCase
 from uuid import uuid4
 
 
-def setup_request(method, endpoint, guid1=None, relation=None, guid2=None, status=200, version=2, n=1, body=None):
+def setup_request(method, endpoint, guid1=None, relation=None, guid2=None, **kwargs):
 
     def decorator(func):
 
         @responses.activate
         def wrap(self):
-            req = prepare_request(self.cc, method, endpoint, guid1, relation, guid2, status, version, n, body)
+            req = prepare_request(self.cc, method, endpoint, guid1, relation, guid2, **kwargs)
             return func(self, req)
 
         return wrap
@@ -45,6 +45,44 @@ class CloudControllerRequest(TestCase):
         self.assertIsInstance(res, cf_api.CloudControllerResponse)
         self.assertIsInstance(res.resources, list)
         self.assertListEqual(req.query, [('q', 'label:bar')])
+
+
+class V3CloudControllerResponse(TestCase):
+    def setUp(self):
+        self.cc = cf_api.CloudController(cc_api_url).v3
+
+    @setup_request('GET', 'apps', status=400, version=3)
+    def test_error_message(self, req):
+        res = req.get()
+        self.assertIsInstance(res, cf_api.V3CloudControllerResponse)
+        self.assertIsInstance(res.error_message[0], six.string_types)
+        self.assertEqual(res.error_message[0],
+                         'CF-ErrorCode: an error occurred (400)')
+
+    @setup_request('GET', 'apps', status=400, version=3)
+    def test_error_code(self, req):
+        res = req.get()
+        self.assertIsInstance(res, cf_api.V3CloudControllerResponse)
+        self.assertIsInstance(res.error_code[0], six.string_types)
+        self.assertEqual(res.error_code[0], '400')
+
+    @setup_request('GET', 'apps', version=3)
+    def test_resource(self, req):
+        res = req.get()
+        self.assertIsInstance(res.resource, cf_api.V3Resource)
+
+    @setup_request('GET', 'apps', version=3, n=2)
+    def test_resources(self, req):
+        res = req.get()
+        self.assertIsInstance(res.resources, list)
+        self.assertEqual(len(res.resources), 2)
+        self.assertIsInstance(res.resources[0], cf_api.V3Resource)
+
+    @setup_request('GET', 'apps', version=3, next_url_path='v3/apps?page=2')
+    def test_next_url(self, req):
+        res = req.get()
+        next_url = cc_api_url + '/v3/apps?page=2'
+        self.assertEqual(res.next_url, next_url)
 
 
 class CloudControllerResponse(TestCase):
@@ -108,10 +146,52 @@ class Resource(TestCase):
         self.assertIsInstance(res.resource.label, six.string_types)
 
     @setup_request('GET', 'apps')
-    def test_label(self, req):
+    def test_status(self, req):
         res = req.get()
         self.assertIsInstance(res, cf_api.CloudControllerResponse)
         self.assertIsInstance(res.resource.status, six.string_types)
+
+
+class V3Resource(TestCase):
+    def setUp(self):
+        self.cc = cf_api.CloudController(cc_api_url).v3
+
+    @setup_request('GET', 'apps', version=3)
+    def test_guid(self, req):
+        res = req.get()
+        self.assertIsInstance(res.resource.guid, six.string_types)
+
+    @setup_request('GET', 'apps', version=3)
+    def test_name(self, req):
+        res = req.get()
+        self.assertIsInstance(res.resource.name, six.string_types)
+
+    @setup_request('GET', 'apps', version=3)
+    def test_space_guid(self, req):
+        res = req.get()
+        self.assertEqual(res.resource.space_guid, res.resource.guid)
+
+    @setup_request('GET', 'spaces', version=3)
+    def test_org_guid(self, req):
+        res = req.get()
+        self.assertEqual(res.resource.org_guid, res.resource.guid)
+
+    @setup_request('GET', 'apps', version=3)
+    def test_href(self, req):
+        res = req.get()
+        href = '/'.join([cc_api_url, 'v3/apps', res.resource.guid])
+        self.assertEqual(res.resource.href, href)
+
+    @setup_request('GET', 'spaces', version=3)
+    def test_org_guid(self, req):
+        res = req.get()
+        href = '/'.join([cc_api_url, 'v3/organizations', res.resource.guid])
+        self.assertEqual(res.resource.organization_url, href)
+
+    @setup_request('GET', 'apps', version=3)
+    def test_state(self, req):
+        res = req.get()
+        self.assertEqual(res.resource.state, 'STARTED')
 
 
 class NewUAA(TestCase):

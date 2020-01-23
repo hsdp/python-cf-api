@@ -104,6 +104,10 @@ class CloudControllerResponse(Response):
         return self
 
     @property
+    def next_url(self):
+        return self.data.get('next_url', None)
+
+    @property
     def error_message(self):
         """Extracts the error message from this response
         """
@@ -267,6 +271,171 @@ class Resource(dict):
         return self._factory.request(self.service_instances_url).get()
 
 
+class V3CloudControllerRequest(Request):
+    """Encapsulates a request to the Cloud Controller API version 3
+    """
+
+    def __init__(self, factory=None):
+        super(V3CloudControllerRequest, self).__init__(factory)
+
+        def response_class(r):
+            return V3CloudControllerResponse(r).set_factory(factory)
+
+        self.set_response_class(response_class)
+
+
+class V3CloudControllerResponse(Response):
+    """Encapsulates a response from the Cloud Controller API version 3
+    """
+    _factory = None
+    _resource_class = None
+
+    def set_factory(self, factory):
+        self._factory = factory
+        self._resource_class = V3Resource
+        return self
+
+    def set_resource_class(self, resource_class):
+        self._resource_class = resource_class
+        return self
+
+    @property
+    def next_url(self):
+        if 'pagination' in self.data and \
+                'next' in self.data['pagination'] and \
+                self.data['pagination']['next'] is not None and \
+                'href' in self.data['pagination']['next']:
+            return self.data['pagination']['next']['href']
+        return None
+
+    @property
+    def error_message(self):
+        """Extracts the error message from this response
+        """
+        if not self.has_error:
+            return None
+
+        if isinstance(self._response_parsed, dict) and \
+                self._response_parsed.get('errors'):
+            return [': '.join([err['title'], err['detail']])
+                    for err in self._response_parsed['errors']]
+        return [self._response_text.decode('utf-8')]
+
+    @property
+    def error_code(self):
+        """Extracts the error code from this response
+        """
+        if not self.has_error:
+            return None
+
+        if isinstance(self._response_parsed, dict) and \
+                self._response_parsed.get('errors'):
+            return [str(err['code'])
+                    for err in self._response_parsed['errors']]
+        return [self._response_text.decode('utf-8')]
+
+    @property
+    def resources(self):
+        """Attempts to parse the response as a resource list
+
+        Returns:
+            list[Resource]
+        """
+        return [self._resource_class(r).set_factory(self._factory) for r in
+                self.data['resources']]
+
+    @property
+    def resource(self):
+        """If the response is an array this gets the first item resource, else
+        return the raw response
+
+        Returns:
+            Resource
+        """
+        if 'resources' in self.data:
+            if len(self.data['resources']) == 0:
+                return None
+            else:
+                return self._resource_class(self.data['resources'][0]) \
+                    .set_factory(self._factory)
+        else:
+            return self._resource_class(self.data).set_factory(self._factory)
+
+
+class V3Resource(dict):
+    """Provides shortcuts to the most commonly used fields of Cloud Controller
+    API version 3 resource objects.
+    """
+    _factory = None
+
+    def __init__(self, response, factory=None):
+        super(V3Resource, self).__init__()
+        self._factory = factory
+        for n, v in response.items():
+            self[n] = v
+
+    def set_factory(self, factory):
+        self._factory = factory
+        return self
+
+    def __getattr__(self, item):
+        return self.get(item, None)
+
+    @property
+    def guid(self):
+        """Shortcut to ``guid``
+        """
+        return self['guid']
+
+    @property
+    def name(self):
+        """Shortcut to ``name``
+        """
+        return self['name']
+
+    @property
+    def state(self):
+        """Shortcut to ``state``
+        """
+        return self['state']
+
+    @property
+    def space_guid(self):
+        """Shortcut to ``relationships.space.data.guid``
+        """
+        try:
+            return self['relationships']['space']['data']['guid']
+        except KeyError:
+            return None
+
+    @property
+    def org_guid(self):
+        """Shortcut to ``relationships.organization.data.guid``
+        """
+        try:
+            return self['relationships']['organization']['data']['guid']
+        except KeyError:
+            return None
+
+    @property
+    def href(self):
+        """Shortcut to ``links.self.href``
+        """
+        try:
+            return self['links']['self']['href']
+        except KeyError:
+            return None
+
+    @property
+    def organization_url(self):
+        """Shortcut to ``links.organization.href``
+        """
+        try:
+            return self['links']['organization']['href']
+        except KeyError:
+            return None
+
+
 class CloudController(RequestFactory):
     """Provides base endpoints for building Cloud Controller requests
 
@@ -288,6 +457,7 @@ class CloudController(RequestFactory):
     version = 2
     info = None
 
+    _v3cc = None
     _last_refresh_time = 0
 
     def __init__(self, base_url):
@@ -301,6 +471,12 @@ class CloudController(RequestFactory):
             .application_json()\
             .set_request_class(CloudControllerRequest)\
             .set_response_class(CloudControllerResponse)
+
+    @property
+    def v3(self):
+        if self._v3cc is None:
+            self._v3cc = self.new_v3()
+        return self._v3cc
 
     def new_doppler(self):
         """Creates a new, authenticated Doppler instance
@@ -331,6 +507,19 @@ class CloudController(RequestFactory):
         """
         self.version = version
         return self
+
+    def set_v3(self):
+        self.set_version(3)
+        self.set_request_class(V3CloudControllerRequest)
+        self.set_response_class(V3CloudControllerResponse)
+        return self
+
+    def new_v3(self):
+        v3cc = self.__class__(self.base_url)
+        v3cc.set_v3()
+        v3cc.set_uaa(self.uaa)
+        v3cc.headers = self.headers
+        return v3cc
 
     def set_uaa(self, uaa):
         """Sets the internal UAA client
@@ -459,7 +648,7 @@ class CloudController(RequestFactory):
         results = []
         while True:
             results.extend(res.resources)
-            next_url = res.data.get('next_url', None)
+            next_url = res.next_url
             if not next_url:
                 break
             res = self.request(next_url).get()
@@ -469,6 +658,16 @@ class CloudController(RequestFactory):
         """Creates a new CloudControllerRequest object with the API version
         prepended to the url segments specified.
 
+        V2 API does not provide API urls with scheme://hostname/v2/ prepended.
+        V3 API does provide API urls with scheme://hostname/v3/ prepended.
+
+        This function strips https?://hostname/v\d+/ from the urls[0] argument,
+        if len(urls) > 0, so that you may pass a V2 URL path such as /v2/apps
+        OR a V3 url such as https://api.example.com/v3/apps and both will
+        resolve to /apps. The version supplied in `self.version` will be
+        prepended to this resolved path. Any query parameters on urls[0] will
+        be preserved in the event that the https?://hostname/v\d+/ is stripped.
+
         Args:
             *urls: list of URL segments
             **kwargs: supported params include
@@ -476,13 +675,16 @@ class CloudController(RequestFactory):
                     to the internal ``self.version``
 
         Returns:
-            CloudControllerRequest
+            CloudControllerRequest or V3CloudControllerRequest
         """
         version = kwargs.get('v', self.version)
         if version is None or \
                 (len(urls) > 0 and re.match('^/?v\d+/', urls[0])):
             return super(CloudController, self).request(*urls)
         else:
+            if len(urls) > 0 and re.match('https?://', urls[0]):
+                urls = list(urls)
+                urls[0] = re.sub('^https?://[^/]+/v\d+/', '', urls[0])
             version_url = ''.join(['v', str(version)])
             return super(CloudController, self).request(version_url, *urls)
 
@@ -1469,8 +1671,11 @@ def new_cloud_controller(
     if cloud_controller_class is None:
         cloud_controller_class = CloudController
 
-    cc = cloud_controller_class(base_url)\
-        .set_verify_ssl(verify_ssl).set_version(version)
+    cc = cloud_controller_class(base_url).set_verify_ssl(verify_ssl)
+    if version == 3:
+        cc.set_v3()
+    else:
+        cc.set_version(version)
 
     info = CFInfo(cc)
     cc.set_info(info)
