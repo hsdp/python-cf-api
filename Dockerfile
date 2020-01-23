@@ -20,4 +20,5 @@ RUN apk --update --no-cache add \
     pip2 --no-cache-dir install -r /requirements.txt && \
     pip2 --no-cache-dir install -r /requirements-dev.txt && \
     python3 -m pip --no-cache-dir install -r /requirements.txt && \
-    python3 -m pip --no-cache-dir install -r /requirements-dev.txt
+    python3 -m pip --no-cache-dir install -r /requirements-dev.txt && \
+    python3 -m pip --no-cache-dir install twine

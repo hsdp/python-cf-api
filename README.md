@@ -143,6 +143,25 @@ with open(my_zipfile, 'r') as f:
     print(res.data)
 ```
 
+## Running in Docker
+
+To get start running `cf_api` in Docker, just build the provided [Dockerfile](./Dockerfile)
+
+```
+you@yourhost:~/python-cf-api$ docker build -t python-cf-api:latest .
+```
+
+and run it using the following syntax.
+
+```
+you@yourhost:~/python-cf-api$ docker run --rm -it -v $PWD:/src -w /src python-cf-api:latest python3
+Python 3.8.1
+[GCC 9.2.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import cf_api
+>>> # play with it here
+```
+
 ## Using CF API version 3
 
 The following example shows how to use the Cloud Foundry version 3 API.
@@ -153,7 +172,7 @@ import cf_api
 cc = cf_api.new_cloud_controller()
 req = cc.v3.apps()
 res = req.get()
-print(res.guid)
+print(res.resource.guid)
 ```
 
 - The `cc.v3` attribute returns a `CloudController` instance that is configured

@@ -12,6 +12,7 @@ setup(
     version=__version__,
     description='Python Interface for Cloud Foundry APIs',
     long_description=open('README.md').read(),
+    long_description_content_type="text/markdown",
     license='Apache License Version 2.0',
     author='Adam Jaso',
     author_email='ajaso@hsdp.io',
