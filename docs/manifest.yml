@@ -1,6 +1,0 @@
-name: cf-api-docs
-path: _build/html
-stack: cflinuxfs2
-disk_quota: 256M
-memory: 256M
-buildpack: https://github.com/cloudfoundry/staticfile-buildpack

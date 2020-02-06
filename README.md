@@ -1,446 +1,314 @@
-# Python Cloud Foundry API Client
+# Python Interface for Cloud Foundry APIs
 
-This module provides a pure Python interface to the Cloud Foundry APIs.
+This is the next-generation edition of `cf_api` Cloud Foundry API client.
 
-## Installation
+## Features
 
-You can install from PIP
+- Minimal dependencies: only requires `requests`
+- Supports both v2 and v3 Cloud Foundry APIs
+- Simplicity: the whole client is a single file
+- Automatic access token refreshing
+- Transparently supports v2 and v3 pagination
+- Supports making requests scoped to a single CF space
+- Unit tested
+- Still supports Python 2.7
 
-`pip install cf-api`
+## Rationale
 
-or view it on [PyPI](https://pypi.python.org/pypi/cf_api).
+Some API clients provide a function for every possible API call. It's a decent
+way to implement a client, but it often requires code generation, and always
+produces thousands of lines of code, which must be maintained. This
+implementation does not provide a function for every API call, but rather aims
+to make building and sending CF API requests easy, as well as maintainable and
+simple.
 
-## Documentation
+## Install
 
-See the docs at [https://cf-api.readthedocs.io/en/latest/](https://cf-api.readthedocs.io/en/latest/) or in the [./docs](docs) directory and the [./examples](examples) directory.
-
-## Versioning
-
-*Version 1.x*
-- Support both Python 2.7/3.6-3.8
-- Remove `cf_api.dropsonde` module in favor of the `dropsonde` module.
-- Add CF API version 3 support
-- Add `Dockerfile` example
-
-*Version 0.x*
-- Supports Python 2.7
-
-## Getting Started
-
-The following examples should be enough to get you started using this library.
-
-```python
-# Initializing the Cloud Controller client
-
-from getpass import getpass
-import cf_api
-import json
-
-cloud_controller = 'https://api.yourcloudfoundry.com'
-deploy_client_id = 'cf'
-deploy_client_secret = ''
-verify_ssl = True
-username = 'youser'
-password = getpass('Password: ').strip()
-
-cc = cf_api.new_cloud_controller(
-    cloud_controller,
-    client_id=deploy_client_id,
-    client_secret=deploy_client_secret,
-    username=username,
-    password=password,
-).set_verify_ssl(verify_ssl)
-    
-    
-# List all organizations
-req = cc.organizations()
-res = req.get()
-orgs = res.resources
-for r in orgs:
-    print('org', r.guid, r.name)
-    
-    
-# List all spaces
-res = cc.spaces().get()
-spaces = res.resources
-for r in spaces:
-    print('space', r.guid, r.name)
-
-
-# List all applications
-
-res = cc.apps().get()
-apps = res.resources
-for r in apps:
-    print('app', r.guid, r.name)
-
-
-# Find an app by it's org/space/name
-
-org_name = 'your_org'
-space_name = 'your_space'
-app_name = 'your_app'
-
-# find your org by name
-res = cc.organizations().get_by_name(org_name)
-# you can access the first array resource using the `resource` attribute
-your_org = res.resource
-
-# find your space by name within your org
-res = cc.request(your_org.spaces_url).get_by_name(space_name)
-your_space = res.resource
-
-# find your app by name within your space
-res = cc.request(your_space.apps_url).get_by_name(app_name)
-your_app = res.resource
-print('your_app', your_app)
-
-
-# Find an app by it's GUID
-# 
-# Note that this same pattern applies to all Cloud Controller resources
-#
-
-res = cc.apps(your_app.guid).get()
-# you can also use the `resource` attribute to access a response with a 
-# non-array result
-your_same_app = res.resource
-print('your_same_app', your_same_app)
-
-
-# Find a stack by name
-your_stack = 'some_stack'
-res = cc.stacks().get_by_name(your_stack)
-stack = res.resource
-
-
-# Create an app
-your_buildpack = 'some_buildpack'
-command = 'python server.py'
-res = cc.apps().set_params(
-    name=app_name,
-    space_guid=your_space.guid,
-    stack_guid=stack.guid,
-    buildpack=your_buildpack,
-    command=command,
-    health_check_type='port',
-    health_check_timeout=60,
-    instances=2,
-    memory=512,
-    disk_quota=512
-).post()
-print('new app', res.data)
-
-
-# Upload the bits for an app
-my_zipfile = '/tmp/app.zip'
-with open(my_zipfile, 'r') as f:
-    res = cc.apps(your_app.guid, 'bits')\
-        .set_query(async='true')\
-        .add_field('resources', json.dumps([]))\
-        .add_file('application', 'application.zip', f, 'application/zip')\
-        .put()
-    print(res.data)
-```
-
-## Running in Docker
-
-To get start running `cf_api` in Docker, just build the provided [Dockerfile](./Dockerfile)
+To install,
 
 ```
-you@yourhost:~/python-cf-api$ docker build -t python-cf-api:latest .
+pip install cf-api==2.0.0a1
 ```
 
-and run it using the following syntax.
+## Testing
+
+To run the tests,
 
 ```
-you@yourhost:~/python-cf-api$ docker run --rm -it -v $PWD:/src -w /src python-cf-api:latest python3
-Python 3.8.1
-[GCC 9.2.0] on linux
-Type "help", "copyright", "credits" or "license" for more information.
->>> import cf_api
->>> # play with it here
+make test
 ```
 
-## Using CF API version 3
+## How to use
 
-The following example shows how to use the Cloud Foundry version 3 API.
+The following sections provide guidance on how to use this library.
+
+### Configuration
+
+By default, the library reads it's configuration from environment variables.
+
+| Name | Description
+| --- | ---
+| *CF_URL* | Cloud Foundry API endpoint
+| *CF_VERSION* | Cloud Foundry API version (only supports `v2` or `v3` at this time)
+| *CF_USERNAME* | UAA username
+| *CF_PASSWORD* | UAA password
+| *CF_CLIENT_ID* | UAA client ID (defaults to `cf`)
+| *CF_CLIENT_SECRET* | UAA client secret (defaults to empty string)
 
 ```python
 import cf_api
-
-cc = cf_api.new_cloud_controller()
-req = cc.v3.apps()
-res = req.get()
-print(res.resource.guid)
+config = cf_api.Config()
 ```
 
-- The `cc.v3` attribute returns a `CloudController` instance that is configured
-  to wrap requests and responses in V3 compatible classes, namely `V3CloudControllerRequest`
-  and `V3CloudControllerResponse`. These objects work similarly to their v2 counterparts,
-  `CloudControllerRequest` and `CloudControllerResponse`.
-- The `V3CloudControllerResponse` provides `resource` and `resources` which return
-  an instance or list of instances of `V3Resource` objects which support the
-  common API object keys such as `name`, `guid`, `space_guid`, and `org_guid`, etc.
-- The `cc.v3.get_all_resources()` function supports both v2 and v3 pagination.
-- The `cc.v3.request()` function supports _both_ relative URLs and absolute URLs,
-  for example `/v3/apps` and `http://localhost/v3/apps`, respectively. See `request()`
-  function documentation for more information.
+The `Config` object is used to configure the CF API client `CloudController`.
 
-## Environment Variables
+### CloudController and new_cloud_controller()
 
-The library is also configurable via environment variables.
-
-| Variable | Description |
-| --- | --- |
-| `PYTHON_CF_URL` | This is the cloud controller base URL. **Do not include a trailing slash on the URL.**
-| `PYTHON_CF_CLIENT_ID` | This is the UAA client ID the library should use.
-| `PYTHON_CF_CLIENT_SECRET` | This is the UAA client secret the library should use.
-| `PYTHON_CF_IGNORE_SSL` | This indicates whether to verify SSL certs. Default is false. Set to `true` to ignore SSL verification.
-| `CF_DOCKER_PASSWORD` | This variable optionally provides the Docker user's password if a docker image is being used. This variable is not necessarily required to use a docker image.
-
-An example library usage with these variables set would look like this:
-
-```python
-# env vars might be set as follows
-# PYTHON_CF_URL=https://api.cloudfoundry.com
-# PYTHON_CF_CLIENT_ID=my_client_id
-# PYTHON_CF_CLIENT_SECRET=my_client_secret
-
-import cf_api
-
-# no args are required when the above env vars are detected
-cc = cf_api.new_cloud_controller()
-res = cc.apps().get()
-# ...
-
-# the same principle applies to new_uaa()
-uaa = cf_api.new_uaa()
-# ...
-```
-
-## Log in with Cloud Foundry Authorization Code
-
-The following functions may be used to implement login with Cloud Foundry via Authorization Codes.
-
-The function `get_openid_connect_url()` shows how to build UAA URL to which the user can be 
-redirected in order to log in.
-  
-The function `verify_code()` can be used when the user successfully logs in and UAA redirects back
-to redirect_uri with the `code` attached. Pass the code and original redirect_uri into this function
-in order to get the OAuth2 Token and to also verify the signature of the JWT.
-
-This particular example applies to OpenID Connect.
+The `CloudController` object is the CF API client. The `new_cloud_controller()`
+function should be used to construct new instances of `CloudController`.
 
 ```python
 import cf_api
-
-cc = 'https://api.yourcloudfoundry.com'
-client_id = 'yourclient'
-client_secret = 'yoursecret'
-response_type = 'code'
-
-def get_openid_connect_url(redirect_uri):
-    return cf_api\
-        .new_uaa(cc=cc, client_id=client_id, client_secret=client_secret, no_auth=True)\
-        .authorization_code_url(response_type, scope='openid', redirect_uri=redirect_uri)
-
-
-def verify_code(code, redirect_uri):
-    uaa = cf_api.new_uaa(cc=cc, client_id=client_id, client_secret=client_secret, no_auth=True)
-    res = uaa.authorization_code(code, response_type, redirect_uri)
-    data = res.data
-    uaa.verify_token(data['id_token'], audience=uaa.client_id)
-    return data
+config = cf_api.Config()
+cc = cf_api.new_cloud_controller(config)  # produces an instance of CloudController
 ```
 
-## Deploy an Application
+#### Make a v2 request
 
-The `cf_api.deploy_manifest` module may be used to deploy a Cloud Foundry app. The 
-following snippet demonstrates the usage for deploying an app.
-
-```bash
-cd path/to/your/project
-python -m cf_api.deploy_manifest \
-  --cloud-controller https://api.yourcloudfoundry.com \
-  -u youser -o yourg -s yourspace \
-  -m manifest.yml -v -w
-# For the CLI usage of deploy_manifest, you may also set
-#   the CF_REFRESH_TOKEN environment variable as a substitute
-#   for collecting username and password
-```
-
-This module may also be used programmatically.
- 
 ```python
-from __future__ import print_function
-import cf_api
-from getpass import getpass
-from cf_api.deploy_manifest import Deploy
+req = cc.v2('apps')
+print(req.url)  # produces the url http://cfdomain/v2/apps
+```
 
-cc = cf_api.new_cloud_controller(
-    'https://api.yourcloudfoundry.com',
-    username='youruser',
-    password=getpass().strip(),
-    client_id='cf',
-    client_secret='',
-    verify_ssl=True
-)
+#### Make a v3 request
 
-manifest_filename = 'path/to/manifest.yml'
+```python
+req = cc.v3('apps')
+print(req.url)  # produces the url http://cfdomain/v3/apps
+```
 
-apps = Deploy.parse_manifest(manifest_filename, cc)
+#### Make a request using config.version
 
+The `CloudController` builds `Request` objects configured with the proper API version.
+
+```python
+config.version = 'v3'
+req = cc.request('apps')
+print(req.url)  # produces the url http://cfdomain/v3/apps
+```
+
+### Request objects
+
+```python
+cc.config.version = 'v3'
+req = cc.request('apps')  # this produces an instance of cf_api.V3Request
+print(req.url)  # this produces a url of 'https://cfdomain/v3/apps'
+res = req.get()  # this sends the request as GET, and returns an instance of V3Response
+print(res.data)  # this is a dictionary of the literal JSON response
+print(res.ok)  # indicates whether the request got a 2xx response or not
+```
+
+#### Set a JSON POST/PUT body
+
+```python
+app_guid = '<RANDOM_APP_GUID>'
+app_instances = {'instances': 1}
+res = cc.request('apps', app_guid).set_body(app_instances).put()
+print(res.data)  # should produce a dictionary of your updated app
+```
+
+Note that you can pass URL path segments as individual args and they will be
+concatenated into the full URL path (i.e. `/<version>/apps/<RANDOM_APP_GUID`).
+
+#### Send an obscure HTTP method
+
+Should you ever need to send a more obscure HTTP method, you may use the `req.send()`
+method.
+
+```python
+req = cc.request('apps', app_guid).send('LIST')
+print(res.data)
+```
+
+#### Explicit v2 or v3 request
+
+```python
+cc.v2('apps').get()  # makes a v2 API request to /v2/apps
+cc.v3('apps').get()  # makes a v3 API request to /v3/apps
+```
+
+#### Easily follow URLs from API resources
+
+Cloud Foundry resources objects often provide prebuilt URLs to related objects.
+For example, a CF application often links to it's parent CF space.
+
+```
+{
+    "metadata": {
+        "guid": "..."
+    },
+    "entity": {
+        "name": "my-app",
+        "space_url": "/v2/spaces/space-guid"
+    }
+}
+```
+
+### Response objects
+
+The `Request.send()` method always produces an instance of `Response` which
+wraps the JSON dictionary response from the CF API and provides a couple
+convenience methods for interacting with the top-level API response attributes.
+
+#### Check if the response was 2xx or not
+
+```python
+res = cc.request('apps', app_guid).get()
+print(res.ok)  # produces a boolean indicating 2xx or not
+```
+
+#### Check if there's another page
+
+```python
+res = cc.request('apps').get()
+print(res.next_url)  # produces the next_url if there's another page otherwise None
+```
+
+Note that the `next_url` attribute is used in the `iterate_all_resources()` to
+get all pages of a resource.
+
+#### Get a wrapped resource object(s)
+
+Getting a single API resource
+
+```python
+res = cc.request('apps', app_guid).get()
+print(res.resource)  # will be an instance of V2Resource
+```
+
+Getting a list of API resources
+
+```python
+res = cc.request('apps').get()
+print([r.name for r in res.resources])  # will be a list of V2Resource objects
+```
+
+### Resource objects
+
+`Resource` objects provide API version agnostic attributes to get commonly used
+API resource attributes such as GUID, name, label, host, space_guid, and org_guid.
+For example, in API v2 GUID is references in `.metadata.guid` but in `v3` it is referenced
+in `.guid`. As another example, in API v2 space_guid is referenced in `.entity.space_guid`
+but in `v3` it is referenced in `.relationships.space.data.guid`. The `Resource` object
+makes it easy to work with both versions.
+
+All the attributes have not been included in the interest of brevity, however,
+it is possible to extend these classes and add your own customizations.
+
+To access common attributes
+
+```python
+res = cc.request('apps', app_guid).get()
+rsc = res.resource  # should be an instance of V2Resource
+print(rsc.guid, rsc.name, rsc.space_guid)
+```
+
+You may configure a `Response` object's `resource_class` attribute, with a
+customized Resource class of your own.
+
+```python
+class MyResource(V3Resource):
+    pass
+
+class MyResponse(V3Response):
+    resource_class = MyResource
+
+class MyRequest(V3Request):
+    response_class = MyResponse
+
+myconfig = cf_api.Config()
+myconfig.request_class = MyRequest
+
+mycc = cf_api.new_cloud_controller(config)
+req = mycc.request('apps')  # produces instance of MyRequest
+res = req.get()  # produces instance of MyResponse
+print(res.resource)  # produces instance of MyResource
+```
+
+### Space objects
+
+The `Space` object looks up a space by it's GUID or by it's org and space name
+and builds requests that are scoped to the space in an API version agnostic manner.
+
+#### Initialize a space object
+
+```python
+org_name = 'my_org'
+space_name = 'my_space'
+cc.config.version = 'v2'
+space = Space(cc).init_by_name(org_name, space_name)
+space_guid = space.space.guid  # space.space is a V2Resource
+org_guid = space.org.guid  # space.org is a V2Resource
+print(space_guid)  # shows the space's guid
+```
+
+#### Make a space scoped API request
+
+For example, list all apps in a space using API v2
+
+```python
+space.cc.config.version = 'v2'
+req = space.request('apps')
+assert req.url == 'https://cfdomain/v2/apps?q=space_guid:' + space_guid
+# should be ok
+```
+
+OR using API v3
+
+```python
+space.cc.config.version = 'v3'
+req = space.request('apps')
+assert req.url == 'https://cfdomain/v3/apps?space_guids=' + space_guid
+# should be ok
+```
+
+The above example also works for any API resource that supports the `space_guid`
+filter (i.e. `service_instances`). Note that filtering `routes` resources by space
+is not supported in API v2, but is supported in API v3.
+
+#### Space shortcuts
+
+Create a space object without an intermediate `CloudController` object,
+
+```python
+space = get_space_by_name(org_name, space_name)  # produces initialized Space object
+```
+
+### Get all pages of a resource
+
+The `iterate_all_resources()` function handles pagination. It accepts a
+`Request` object, v2 and v3 are supported transparently, and makes GET requests,
+following the `next_url` attribute until no more pages are returned. This is a
+generator function, therefore on each page it yields the individual resources.
+
+For example, let's use `iterate_all_resources()` to list all apps in a space.
+
+```python
+req = space.request('apps')
+for app in iterate_all_resources(req):
+    print(app)
+```
+
+If you want to assemble the entire list of resources before iterating it, you
+may use a list comprehension.
+
+```python
+req = space.request('apps')
+apps = [app for app in iterate_all_resources(req)]
 for app in apps:
-    app.set_debug(True)
-    app.set_org_and_space('yourorg', 'yourspace')
-    print (app.push()) 
-    # print (app.destroy(destroy_routes=True))
+    print(app)
 ```
 
-## Deploy a Service
+## License
 
-The `cf_api.deploy_service` module may be used to deploy a Cloud Foundry service to a space. The 
-following snippet demonstrates the usage for deploying a service.
-
-```bash
-cd path/to/your/project
-python -m cf_api.deploy_service \
-  --cloud-controller https://api.yourcloudfoundry.com \
-  -u youser -o yourg -s yourspace \
-  --name your-custom-service-name --service-name cf-service-type \
-  --service-plan cf-service-type-plan -v -w
-```
-
-This module may also be used programmatically.
-
-```python
-from __future__ import print_function
-import cf_api
-from getpass import getpass
-from cf_api.deploy_service import DeployService
-
-cc = cf_api.new_cloud_controller(
-    'https://api.yourcloudfoundry.com',
-    username='youruser',
-    password=getpass().strip(),
-    client_id='cf',
-    client_secret='',
-    verify_ssl=True
-)
-
-service = DeployService(cc)\
-    .set_debug(True)\
-    .set_org_and_space('yourorg', 'yourspace')
-    
-result = service.create('my-custom-db', 'database-service', 'small-database-plan')
-print(result)
-```
-
-## Query a Space
-
-The `cf_api.deploy_space` module provides a convenience interface for working with Cloud Foundry
-spaces. The module provides read-only (i.e. GET requests only) support for the Cloud Controller API
-endpoints scoped to a specific space i.e. /v2/spaces/<space_guid>/(routes|service_instances|apps).
-The following snippet demonstrates the usage for listing apps for in a space.
-
-```bash
-cd path/to/your/project
-python -m cf_api.deploy_space \
-  --cloud-controller https://api.yourcloudfoundry.com \
-  -u youser -o yourg -s yourspace apps
-```
-
-This module may also be used programmatically.
-
-```python
-from __future__ import print_function
-import cf_api
-from getpass import getpass
-from cf_api.deploy_space import Space
-
-cc = cf_api.new_cloud_controller(
-    'https://api.yourcloudfoundry.com',
-    username='youruser',
-    password=getpass().strip(),
-    client_id='cf',
-    client_secret='',
-    verify_ssl=True
-)
-
-space = Space(cc, org_name='yourorg', space_name='yourspace')
-
-# create the space
-space.create()
-
-# destroy the space
-space.destroy()
-
-# make a Cloud Controller request within the space
-apps_in_the_space = space.request('apps').get()
-
-# deploys an application to this space
-space.deploy_manifest('/path/to/manifest.yml') # push the app
-space.wait_manifest('/path/to/manifest.yml') # wait for the app to start
-space.destroy_manifest('/path/to/manifest.yml') # destroy the app
-
-app = space.get_app_by_name('yourappname') # find an application by its name within the space
-
-# deploy a service in this space
-space.get_deploy_service().create('my-custom-db', 'database-service', 'small-database-plan')
-service = space.get_service_instance_by_name('my-custom-db') # find a service by its name within the space
-```
-
-## Tail Application Logs
-
-The `cf_api.logs_util` module may be used to tail Cloud Foundry application logs. Both
-`recentlogs` and `stream` modes are supported. The following snippet demonstrates the usage for
-listing recent logs and tailing app logs simultaneously.
-
-```bash
-cd path/to/your/project
-python -m cf_api.logs_util \
-  --cloud-controller https://api.yourcloudfoundry.com \
-  -u youser -o yourg -s yourspace -a yourapp \
-  -r -t
-```
-
-This module may also be used programmatically.
-
-```python
-from __future__ import print_function
-import cf_api
-from getpass import getpass
-from cf_api import dropsonde_util
-
-cc = cf_api.new_cloud_controller(
-    'https://api.yourcloudfoundry.com',
-    username='youruser',
-    password=getpass().strip(),
-    client_id='cf',
-    client_secret='',
-    verify_ssl=True,
-    init_doppler=True
-)
-
-app_guid = 'your-app-guid'
-app = cc.apps(app_guid).get().resource
-
-# get recent logs
-logs = cc.doppler.apps(app.guid, 'recentlogs').get().multipart
-
-# convert log envelopes from protobuf to dict
-logs = [dropsonde_util.parse_envelope_protobuf(log) for log in logs]
-
-print(logs)
-
-# stream logs
-ws = cc.doppler.ws_request('apps', app.guid, 'stream')
-try:
-    ws.connect()
-    ws.watch(lambda m: print(dropsonde_util.parse_envelope_protobuf(m)))
-except Exception as e:
-    print(e)
-finally:
-    ws.close()
-```
+Apache License Version 2.0
