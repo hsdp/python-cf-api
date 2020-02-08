@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # Copyright 2020 Philips HSDP
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,13 +28,75 @@ else:
     from urllib.parse import urlencode, urlsplit, urlunsplit
 
 
-def is_expired(jwt, now):
+resource_names = [
+    'app_usage_events',
+    'apps',
+    'audit_events',
+    'buildpacks',
+    'builds',
+    'blobstores',
+    'deployments',
+    'domains',
+    'droplets',
+    'events',
+    'environment_variable_groups',
+    'feature_flags',
+    'info',
+    'isolation_segments',
+    'jobs',
+    'organizations',
+    'packages',
+    'private_domains',
+    'processes',
+    'quota_definitions',
+    'resource_match',
+    'running_security_groups',
+    'roles',
+    'route_mappings',
+    'routes',
+    'security_groups',
+    'service_instances',
+    'service_bindings',
+    'service_brokers',
+    'service_keys',
+    'service_plan_visibilities',
+    'service_plans',
+    'service_usage_events',
+    'services',
+    'shared_domains',
+    'space_quota_definitions',
+    'spaces',
+    'staging_security_groups',
+    'stacks',
+    'tasks',
+    'user_provided_service_instances',
+    'users',
+]
+
+
+def jwt_decode(jwt):
+    """Decodes a JWT token. It is useful primarily to introspect a UAA JWT
+    token without making a request to UAA.
+
+    WARNING: jwt_decode() does NOT verify the token's signature. DO NOT rely on
+    this to verify a token signature.
+
+    Args:
+        jwt (str): JWT token string
+
+    Returns:
+        dict: A dictionary of the token's attributes"""
     parts = jwt.split('.', 2)
     if len(parts) != 3:
         raise RequestException('JWT is invalid: {}'.format(jwt))
     # add extra padding (==) to avoid b64decode errors
     data = b64decode((parts[1] + '==')).decode('utf-8')
     data = json.loads(data)
+    return data
+
+
+def is_expired(jwt, now):
+    data = jwt_decode(jwt)
     if 'exp' not in data:
         raise RequestException('JWT expiration not found: {}'.format(data))
     return int(data['exp']) <= now
@@ -77,6 +138,8 @@ def configure(config):
 
     Returns:
         Config: the original config argument"""
+    config.info = None
+    config.auth = None
     url = '/'.join([config.base_url, 'v2/info'])
     try:
         res = requests.get(url)
@@ -148,34 +211,49 @@ class Config(object):
     """Config encapsulates the global settings for a single Cloud Foundry API
     endpoint"""
 
-    """The API base url; read from environment var CF_URL"""
     base_url = os.getenv('CF_URL')
+    """The API base url; read from environment var CF_URL
+    """
 
-    """The API version; read from environment var CF_VERSION; defaults to v2"""
     version = os.getenv('CF_VERSION', 'v2')
+    """The API version; read from environment var CF_VERSION; defaults to v2
+    """
 
-    """The API username; read from environment var CF_USERNAME"""
     username = os.getenv('CF_USERNAME')
+    """The API username; read from environment var CF_USERNAME
+    """
 
-    """The API password; read from environment var CF_PASSWORD"""
     password = os.getenv('CF_PASSWORD')
+    """The API password; read from environment var CF_PASSWORD
+    """
 
-    """The API client ID; read from environment var CF_CLIENT_ID;
-    defaults to 'cf'"""
     client_id = os.getenv('CF_CLIENT_ID', 'cf')
+    """The API client ID; read from environment var CF_CLIENT_ID;
+    defaults to 'cf'
+    """
 
-    """The API client secret; read from environment var CF_CLIENT_SECRET;
-    defaults to ''"""
     client_secret = os.getenv('CF_CLIENT_SECRET', '')
+    """The API client secret; read from environment var CF_CLIENT_SECRET;
+    defaults to ''
+    """
 
-    """Indicates whether to attempt to automatically refresh the API
-    access_token"""
     auto_refresh_token = os.getenv('CF_AUTO_REFRESH_TOKEN', 'true') != 'false'
+    """Indicates whether to attempt to automatically refresh the API
+    access_token
+    """
 
     request_class = None
+    """May optionally contain a user-specified request class that will
+    be used to build request
+    """
 
     info = None
+    """Contains a dictionary of /v2/info details
+    """
+
     auth = None
+    """Contains a dictionary of UAA auth details
+    """
 
     def assert_info(self):
         if self.info is None:
@@ -200,30 +278,44 @@ class Resource(object):
         self.data = data
 
     def get(self, name):
+        """Access a key from the resource's data dictionary"""
         return self.data.get(name)
 
     def __repr__(self):
         """Shows the guid and name/host/label of this object"""
         name = str(self.host or self.label or self.name)
-        return '\t'.join([self.guid, name])
+        return '\t'.join([str(self.guid), name])
 
     def __getattr__(self, name):
-        """Accesses the .data dictionary key of `name\'"""
+        """Access a key from the resource's data dictionary"""
         return self.get(name)
 
     def __getitem__(self, name):
-        """Accesses the .data dictionary key of `name\'"""
+        """Access a key from the resource's data dictionary"""
         return self.get(name)
 
     def __contains__(self, name):
-        """Checks if .data contains `name\'"""
-        return name in self.data
+        """Checks if key is in the resource's data dictionary"""
+        return self.get(name) is not None
 
 
 class V2Resource(Resource):
     """V2Resource wraps a v2 API object."""
 
     def get(self, name):
+        """Access a key from the resource's data dictionary
+
+        If <name> matches .metadata or .entity:
+            .<name> is returned
+        If <name> matches *_url or *_guid:
+            .entity.<name> is returned if it exists else None
+        If <name> is in .entity:
+            .entity.<name> is returned
+        If <name> is in .metadata:
+            .metadata.<name> is returned
+        Else
+            super.get() is returned
+        """
         if name == 'entity' or name == 'metadata':
             return self.data[name]
         elif name.endswith('_url') or name.endswith('_guid'):
@@ -237,10 +329,17 @@ class V2Resource(Resource):
 
 
 class V3Resource(Resource):
-    """V3Resource wraps a v3 API object.
-    """
+    """V3Resource wraps a v3 API object."""
 
     def get(self, name):
+        """Access a key from the resource's data dictionary
+
+        If <name> matches *_url:
+            .link.<name>.href is returned if it exists else None
+        If <name> matches *_guid:
+            .relationships.<name>.data.guid is returned if it exists else None
+        Else
+            super.get() is returned"""
         if name.endswith('_url'):
             if 'links' not in self.data:
                 return None
@@ -265,24 +364,24 @@ class Response(object):
     """Response wraps an API response providing checks for errors and
     simplified methods for accessing returned resources."""
 
-    """Indicates the *Resource wrapper class that should be used to wrap
-    individual API resources
-    """
     resource_class = Resource
+    """Indicates the *Resource wrapper class that should be used to wrap
+    individual API resources"""
 
-    """Holds underlying requests.Response object"""
     response = None
+    """Holds underlying requests.Response object"""
 
-    """Holds a JSON parsed dictionary of response content"""
     data = None
+    """Holds a JSON parsed dictionary of response content"""
 
     def __init__(self, response):
         self.response = response
         self.data = json.loads(response.content)
 
-    @property
-    def next_url(self):
-        raise ConfigException('Response.next_url not implemented.')
+    def __dir__(self):
+        names = ['next_url', 'prev_url', 'total_results', 'total_pages']
+        names.extend(dir(self.__class__))
+        return names
 
     def assert_ok(self):
         raise ConfigException('Response.assert_ok() not implemented.')
@@ -317,7 +416,7 @@ class Response(object):
             try:
                 return self.resource_class(next(iter(self.data['resources'])))
             except StopIteration:
-                raise ResponseException('Resource not found.')
+                raise ResponseException('Resource not found.', self)
         else:
             return self.resource_class(self.data)
 
@@ -326,15 +425,14 @@ class V2Response(Response):
     """V2Response wraps a v2 API response, providing access to the `next_url\'
     attr and error checks."""
 
+    resource_class = V2Resource
     """Indicates the V2Resource wrapper class that should be used to wrap
     individual API resources.
     """
-    resource_class = V2Resource
 
-    @property
-    def next_url(self):
-        """Access the `next_url\' attribute from the response object"""
-        return self.data.get('next_url', None)
+    def __getattr__(self, name):
+        """Access a key from the response's data dictionary"""
+        return self.data.get(name)
 
     def assert_ok(self):
         if not self.ok:
@@ -351,20 +449,30 @@ class V3Response(Response):
     """V3Response wraps a v3 API response, providing access to the `next_url\'
     attr and error checks."""
 
+    resource_class = V3Resource
     """Indicates the V3Resource wrapper class that should be used to wrap
     individual API resources"""
-    resource_class = V3Resource
 
-    @property
-    def next_url(self):
-        """Access the `pagination.next.href\' attribute from the response
-        object"""
-        if 'pagination' in self.data and \
-                'next' in self.data['pagination'] and \
-                self.data['pagination']['next'] is not None and \
-                'href' in self.data['pagination']['next']:
-            return self.data['pagination']['next']['href']
-        return None
+    def __getattr__(self, name):
+        """Access a key from the response's data dictionary
+
+        If <name> matches *_url:
+            .pagination.<name>.href is returned if it exists else None
+        If <name> is ``total_pages`` or ``total_results``
+            .pagination.<name> is returned if it exists else None
+        Else
+            data[<name>] is returned if it exists else None
+        """
+        if name.endswith('_url'):
+            if 'pagination' not in self.data:
+                return None
+            parts = name.split('_')
+            name = '_'.join(parts[:-1])
+            return self.data['pagination'][name].get('href')
+        elif name == 'total_pages' or name == 'total_results':
+            return self.data['pagination'].get(name)
+        else:
+            return self.data.get(name)
 
     def assert_ok(self):
         if not self.ok:
@@ -384,19 +492,19 @@ class Request(object):
     """Request wraps an API request by encapsulating the request components
     such as HTTP method, body, and URL"""
 
+    response_class = Response
     """Indicates *Response class that should be used to wrap API responses
     received."""
-    response_class = Response
 
-    """Indicates the API config"""
     config = None
+    """Indicates the API config"""
 
-    """Indicates the HTTP body; must be bytes encoded"""
     body = None
+    """Indicates the HTTP body; must be bytes encoded"""
 
+    url = None
     """Indicates the HTTP endpoint to request; use ``set_url()`` to control
     this value"""
-    url = None
 
     version = None
 
@@ -406,6 +514,89 @@ class Request(object):
         if self.version is None:
             self.version = config.version
         self.set_url(*path, **query)
+
+    def __dir__(self):
+        names = []
+        names.extend(dir(self.__class__))
+        names.extend(resource_names)
+        return names
+
+    def __getattr__(self, path):
+        """Append a path segment to the URL and return a cloned Request object
+
+        This method enables a fluent style programming for Request,
+        for example:
+
+            req = Request(config)
+            print(req.apps.url)  # produces http://cfdomain/v2/apps
+
+        In this example, ``apps`` causes invocation of ``__getattr__`` which
+        returns a cloned Request object with the path segment ``apps``
+        appended.
+
+        Args:
+            *path (str): list of path segments
+
+        Returns:
+            Request: cloned object"""
+        return self.clone().append_path(path)
+
+    def __call__(self, *path):
+        """Append multiple path segments to the URL and return a cloned Request
+        object
+
+        This method enables a fluent style programming for Request,
+        for example:
+
+            guid = '<APPGUID>'
+            req = Request(config)
+            print(req.apps(guid).url)
+            # produces http://cfdomain/v2/apps/<APPGUID>
+
+        In this example, ``apps`` causes invocation of ``__call__`` which
+        returns a cloned Request object with the path segment
+        ``apps/<APPGUID>`` appended.
+
+        Args:
+            *path (str): list of path segments
+
+        Returns:
+            Request: cloned object"""
+        return self.clone().append_path(*path)
+
+    def append_path(self, *path):
+        """Append multiple path segments to this object's URL.
+
+        Args:
+            *path (str): list of path segments
+
+        Returns:
+            Request"""
+        path = '/'.join(list(path))
+        parts = list(urlsplit(self.url))
+        parts[2] = '/'.join([re.sub('(^/|/$)', '', parts[2]), path])
+        self.url = urlunsplit(parts)
+        return self
+
+    def set_query(self, **query):
+        """Set the object's URL query to the values in **query
+
+        Args:
+            **query: dictionary of keys and values to be urlencoded
+
+        Returns:
+            Request"""
+        parts = list(urlsplit(self.url))
+        parts[3] = urlencode(query, doseq=True)
+        self.url = urlunsplit(parts)
+        return self
+
+    def clone(self):
+        """Makes and returns a copy of this request.
+
+        Returns:
+            Request: a clone of this request"""
+        return self.__class__(self.config, self.url)
 
     def set_url(self, *path, **query):
         """Sets the URL path and query string for this request. The path
@@ -449,7 +640,7 @@ class Request(object):
         self.headers['Content-Type'] = 'application/json'
         return self
 
-    def send(self, method):
+    def send(self, method, retries=1):
         """Sets the HTTP method for this request. This method will
         automatically try to get a new access token if the access token is
         expired using ``authenticate()``.
@@ -471,6 +662,9 @@ class Request(object):
                    'Accept': 'application/json'}
         res = requests.request(method, self.url, data=self.body,
                                headers=headers)
+        if res.status_code == 401 and retries > 0:
+            configure(self.config)
+            return self.send(method, retries - 1)
         return self.response_class(res)
 
     def get(self):
@@ -504,11 +698,38 @@ class CloudController(object):
     """CloudController provides a high-level client to build, send, and receive
     v2 or v3 API requests and responses."""
 
-    """The config for this client"""
     config = None
+    """The config for this client"""
 
     def __init__(self, config):
         self.config = config
+
+    def __getattr__(self, path):
+        """Support fluent style programming by creating a request
+        with path segment ``path``. This is an alias for ``request(path)``.
+
+        Args:
+            path (str): URL path segment to include in the request
+
+        Returns:
+            Request"""
+        return self.request(path)
+
+    @property
+    def v2(self):
+        """Explicitly create a v2 request object
+
+        Returns:
+            V2Request"""
+        return V2Request(self.config)
+
+    @property
+    def v3(self):
+        """Explicitly create a v3 request object
+
+        Returns:
+            V3Request"""
+        return V3Request(self.config)
 
     @property
     def request_class(self):
@@ -519,28 +740,6 @@ class CloudController(object):
             return self.config.request_class
         return getattr(sys.modules[__name__],
                        self.config.version.upper() + 'Request')
-
-    def v2(self, *path, **query):
-        """Creates an instance of V2Request
-
-        Args:
-            *path (str): a list of URL path segments
-            **query (dict): a dict of query string pairs
-
-        Returns:
-            V2Request"""
-        return V2Request(self.config, *path, **query)
-
-    def v3(self, *path, **query):
-        """Creates an instance of V3Request
-
-        Args:
-            *path (str): a list of URL path segments
-            **query (dict): a dict of query string pairs
-
-        Returns:
-            V3Request"""
-        return V3Request(self.config, *path, **query)
 
     def request(self, *path, **query):
         """Creates a request_class instance using the specified
@@ -606,14 +805,14 @@ class Space(object):
     """Space is a helper class that provides helper functions to build requests
     that are scoped to a single org and space"""
 
-    """CloudController instance"""
     cc = None
+    """CloudController instance"""
 
-    """Resource object representing the organization"""
     org = None
+    """Resource object representing the organization"""
 
-    """Resource object representing the space"""
     space = None
+    """Resource object representing the space"""
 
     def __init__(self, cc):
         self.cc = cc

@@ -5,9 +5,10 @@ This is the next-generation edition of `cf_api` Cloud Foundry API client.
 ## Features
 
 - Minimal dependencies: only requires `requests`
+- Simplicity: the whole library is a single file
 - Supports both v2 and v3 Cloud Foundry APIs
-- Simplicity: the whole client is a single file
 - Automatic access token refreshing
+- Fluent interface for building requests
 - Transparently supports v2 and v3 pagination
 - Supports making requests scoped to a single CF space
 - Unit tested
@@ -27,7 +28,7 @@ simple.
 To install,
 
 ```
-pip install cf-api==2.0.0a1
+pip install cf-api==2.0.0a2
 ```
 
 ## Testing
@@ -130,13 +131,6 @@ req = cc.request('apps', app_guid).send('LIST')
 print(res.data)
 ```
 
-#### Explicit v2 or v3 request
-
-```python
-cc.v2('apps').get()  # makes a v2 API request to /v2/apps
-cc.v3('apps').get()  # makes a v3 API request to /v3/apps
-```
-
 #### Easily follow URLs from API resources
 
 Cloud Foundry resources objects often provide prebuilt URLs to related objects.
@@ -152,6 +146,33 @@ For example, a CF application often links to it's parent CF space.
         "space_url": "/v2/spaces/space-guid"
     }
 }
+```
+
+#### Fluent interface
+
+`Request` objects support a fluent interface. Invoking a `Request` object as a
+function, will append the argument(s) to the URL as a path segments.
+
+```python
+app_guid = '<APPGUID>'
+req = cc.v2
+print(req.apps(app_guid).url)  # produces http://cfdomain/v2/apps/<APPGUID>
+```
+
+Unimplemented `Request` class attributes will also be appended as path attributes.
+The following example shows the usage of `apps` as an unimplemented attribute.
+
+```python
+app_guid = '<APPGUID>'
+req = cc.v2
+print(req.apps.url)  # produces http://cfdomain/v2/apps
+```
+
+Here is another example to get all apps in a space.
+
+```python
+space_guid = '<SPACEGUID>'
+print(cc.v2.spaces(space_guid).apps.url)  # produces http://cfdomain/v2/spaces/<SPACEGUID>/apps
 ```
 
 ### Response objects
@@ -197,8 +218,8 @@ print([r.name for r in res.resources])  # will be a list of V2Resource objects
 
 `Resource` objects provide API version agnostic attributes to get commonly used
 API resource attributes such as GUID, name, label, host, space_guid, and org_guid.
-For example, in API v2 GUID is references in `.metadata.guid` but in `v3` it is referenced
-in `.guid`. As another example, in API v2 space_guid is referenced in `.entity.space_guid`
+For example, in API v2 `guid` is referenced in `.metadata.guid` but in `v3` it is referenced
+in `.guid`. As another example, in API v2 `space_guid` is referenced in `.entity.space_guid`
 but in `v3` it is referenced in `.relationships.space.data.guid`. The `Resource` object
 makes it easy to work with both versions.
 
@@ -214,7 +235,7 @@ print(rsc.guid, rsc.name, rsc.space_guid)
 ```
 
 You may configure a `Response` object's `resource_class` attribute, with a
-customized Resource class of your own.
+customized `Resource` class of your own.
 
 ```python
 class MyResource(V3Resource):
@@ -229,10 +250,28 @@ class MyRequest(V3Request):
 myconfig = cf_api.Config()
 myconfig.request_class = MyRequest
 
-mycc = cf_api.new_cloud_controller(config)
+mycc = cf_api.new_cloud_controller(myconfig)
 req = mycc.request('apps')  # produces instance of MyRequest
 res = req.get()  # produces instance of MyResponse
 print(res.resource)  # produces instance of MyResource
+```
+
+Note that `cc.v2()` and `cc.v3()` will NOT use your customized request class.
+
+#### Accessing name, guid, \*\_url, and \*\_guid
+
+Both `V2Resource` and `V3Resource`, support accessing any resource attribute that
+ends with `*_url` or `*_guid`. This means that the following example works
+regardless of version.
+
+```python
+v2res = cc.v2.apps.get().resource
+v3res = cc.v3.apps.get().resource
+assert v2res.space_url == v3res.space_url
+assert v2res.space_guid == v3res.space_guid
+assert v2res.guid == v3res.guid
+assert v2res.name == v3res.name
+# these comparisons should all be ok
 ```
 
 ### Space objects
@@ -278,17 +317,25 @@ is not supported in API v2, but is supported in API v3.
 
 #### Space shortcuts
 
-Create a space object without an intermediate `CloudController` object,
+The following methods create a space object without an intermediate `CloudController` object.
+
+Use the org and space name to create a `Space` instance.
 
 ```python
 space = get_space_by_name(org_name, space_name)  # produces initialized Space object
 ```
 
+Use the space guid to create a `Space` instance.
+
+```python
+space = get_space_by_guid(space_guid)  # produces initialized Space object
+```
+
 ### Get all pages of a resource
 
 The `iterate_all_resources()` function handles pagination. It accepts a
-`Request` object, v2 and v3 are supported transparently, and makes GET requests,
-following the `next_url` attribute until no more pages are returned. This is a
+`Request` object and makes GET requests following the `next_url` attribute until
+no more pages are returned. V2 and v3 are supported transparently. This is a
 generator function, therefore on each page it yields the individual resources.
 
 For example, let's use `iterate_all_resources()` to list all apps in a space.

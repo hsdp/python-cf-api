@@ -1,3 +1,16 @@
+# Copyright 2020 Philips HSDP
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import sys
 import json
 import time
@@ -62,6 +75,12 @@ def new_config(version='v2', username=cf_username, password=cf_password,
     return config
 
 
+def get_response(data, response_class=cf_api.Response):
+    res = requests.Response()
+    res._content = json.dumps(data).encode('utf-8')
+    return response_class(res)
+
+
 def add_info(status=200):
     r.add(r.GET, cf_url + '/v2/info', status=status,
           json=test_config_info)
@@ -106,7 +125,7 @@ class TestIsExpired(TestCase):
 
     def test_invalid_jwt(self):
         with self.assertRaises(cf_api.RequestException) as ctx:
-            cf_api.is_expired('', 0)
+            cf_api.jwt_decode('')
         self.assertIn('invalid', str(ctx.exception))
 
     def test_expiration_not_found(self):
@@ -224,6 +243,7 @@ class TestAuthenticate(TestCase):
 
 
 class TestResource(TestCase):
+
     def test_getattr_getitem(self):
         res = cf_api.V2Resource(test_space_v2)
         self.assertEqual(res['entity']['random_key'],
@@ -239,52 +259,58 @@ class TestResource(TestCase):
         res = cf_api.V2Resource(test_space_v2)
         self.assertEqual(str(res), '\t'.join([res.guid, res.name]))
 
+    def test_get(self):
+        res = cf_api.V2Resource(test_space_v2)
+        self.assertEqual(test_space_v2['metadata']['guid'], res.guid)
+
 
 class TestV2Resource(TestCase):
-    def test_guid_name(self):
-        res = cf_api.V2Resource(test_org_v2)
-        self.assertEqual(res.guid, test_org_v2['metadata']['guid'])
-        self.assertEqual(res.name, test_org_v2['entity']['name'])
 
-    def test_attrs(self):
+    def test_get(self):
         res = cf_api.V2Resource(test_space_v2)
-        for name in ['guid', 'name', 'organization_guid', 'organization_url']:
-            self.assertIsNotNone(res[name])
-        self.assertIsNone(res['host'])
-        self.assertIsNotNone(res['metadata'])
+        self.assertEqual(res.guid, test_space_v2['metadata']['guid'])
+        self.assertEqual(res.name, test_space_v2['entity']['name'])
+        self.assertEqual(res.organization_url,
+                         test_space_v2['entity']['organization_url'])
+        self.assertIsNone(res.nonexistent_url)
+        self.assertEqual(res.organization_guid,
+                         test_space_v2['entity']['organization_guid'])
+        self.assertIsNone(res.nonexistent_guid)
+        self.assertIsNone(res.nonexistent_key)
+        self.assertEqual(res.metadata, test_space_v2['metadata'])
+        self.assertEqual(res.entity, test_space_v2['entity'])
 
 
 class TestV3Resource(TestCase):
-    def test_guid_name(self):
-        res = cf_api.V3Resource(test_org_v3)
-        self.assertEqual(res.guid, test_org_v3['guid'])
-        self.assertEqual(res.name, test_org_v3['name'])
 
-    def test_attrs(self):
+    def test_get(self):
         res = cf_api.V3Resource(test_space_v3)
-        for name in ['guid', 'name', 'organization_guid', 'organization_url']:
-            self.assertIsNotNone(res[name])
-        self.assertIsNone(res['host'])
-        self.assertIsNone(res['space_url'])
-        self.assertIsNone(res['space_guid'])
-        self.assertIsNone(cf_api.V3Resource({})['space_url'])
-        self.assertIsNone(cf_api.V3Resource({})['space_guid'])
+        org_guid = \
+            test_space_v3['relationships']['organization']['data']['guid']
+        self.assertEqual(res.guid, test_space_v3['guid'])
+        self.assertEqual(res.name, test_space_v3['name'])
+        self.assertEqual(res.organization_url,
+                         test_space_v3['links']['organization']['href'])
+        self.assertEqual(res.organization_guid,
+                         org_guid)
+        self.assertIsNone(res.nonexistent_key)
+        res = cf_api.V3Resource({})
+        self.assertIsNone(res.nonexistent_url)
+        self.assertIsNone(res.nonexistent_guid)
+        res = cf_api.V3Resource({'links': {}, 'relationships': {}})
+        self.assertIsNone(res.nonexistent_url)
+        self.assertIsNone(res.nonexistent_guid)
 
 
 class TestResponse(TestCase):
-    def test_next_url(self):
-        # This test exists mainly to improve code coverage :P
-        with self.assertRaises(cf_api.ConfigException):
-            res = requests.Response()
-            res._content = b'{}'
-            cf_api.Response(res).next_url
+
+    def test_dir(self):
+        dir(get_response({}))
 
     def test_assert_ok(self):
         # This test exists mainly to improve code coverage :P
         with self.assertRaises(cf_api.ConfigException):
-            res = requests.Response()
-            res._content = b'{}'
-            cf_api.Response(res).assert_ok()
+            get_response({}).assert_ok()
 
     @r.activate
     def test_resources_attr_with_single_resource(self):
@@ -351,6 +377,22 @@ class TestV2Response(TestCase):
 
 
 class TestV3Response(TestCase):
+
+    def test_getattr(self):
+        res = get_response({
+            'pagination': {
+                'next': {
+                    'href': cf_url + '/v3/spaces/' + test_space_guid
+                },
+                'total_pages': 1,
+                'total_results': 1,
+            },
+        }, cf_api.V3Response)
+        self.assertEqual(res.next_url, res.data['pagination']['next']['href'])
+        self.assertEqual(res.total_pages, 1)
+        self.assertEqual(res.total_results, 1)
+        self.assertIsNone(res.nonexistent_key)
+
     @r.activate
     def test_next_url(self):
         add_info()
@@ -383,6 +425,16 @@ class TestRequest(TestCase):
         self.config = new_config(with_auth=True, with_info=True)
         self.req = cf_api.Request(self.config, 'apps')
 
+    def test_dir(self):
+        dir(self.req)
+
+    def test_getattr(self):
+        self.assertEqual(self.req.spaces.url, cf_url + '/v2/apps/spaces')
+
+    def test_set_query(self):
+        self.assertEqual(self.req.set_query(page=1).url,
+                         cf_url + '/v2/apps?page=1')
+
     def test_init(self):
         self.assertEqual(self.req.url, cf_url + '/v2/apps')
 
@@ -405,6 +457,46 @@ class TestRequest(TestCase):
     def test_set_body(self):
         self.req.set_body({'instances': 1})
         self.assertEqual(self.req.body, b'{"instances": 1}')
+
+    @r.activate
+    def test_send_retry(self):
+        self.num_req = 0
+
+        def space_callback(req):
+            if self.num_req == 0:
+                res = (200, {}, json.dumps(test_space_v2))
+            elif self.num_req == 1:
+                res = (401, {}, json.dumps({}))
+            elif self.num_req == 2:
+                res = (200, {}, json.dumps(test_space_v2))
+            else:
+                raise Exception('Why am I here?')
+            self.num_req += 1
+            return res
+
+        add_info()
+        add_auth()
+        r.add_callback(r.GET, cf_url + '/v2/spaces/' + test_space_guid,
+                       callback=space_callback,
+                       content_type='application/json')
+        # should succeed
+        res = cf_api.Request(self.config, 'spaces', test_space_guid).get()
+        self.assertTrue(res.ok)
+        # should get 401 and retry and succeed
+        res = cf_api.Request(self.config, 'spaces', test_space_guid).get()
+        self.assertTrue(res.ok)
+        # check that we num_req is as expected
+        self.assertEqual(self.num_req, 3)
+        # check that we got the calls we expected
+        expected = [
+            cf_url + '/v2/spaces/' + test_space_guid,
+            cf_url + '/v2/spaces/' + test_space_guid,
+            cf_url + '/v2/info',
+            uaa_url + '/oauth/token',
+            cf_url + '/v2/spaces/' + test_space_guid,
+        ]
+        for i, url in enumerate(expected):
+            self.assertEqual(r.calls[i].request.url, url)
 
     @r.activate
     def test_send_get(self):
@@ -470,6 +562,13 @@ class TestCloudController(TestCase):
         config = new_config(version='v3')
         cc = cf_api.new_cloud_controller(config)
         self.assertEqual(cc.request_class, cf_api.V3Request)
+
+    @r.activate
+    def test_getattr(self):
+        add_info()
+        config = new_config(version='v3', with_info=True)
+        cc = cf_api.new_cloud_controller(config)
+        self.assertIsInstance(cc.apps, cf_api.V3Request)
 
     @r.activate
     def test_v2(self):

@@ -4,5 +4,6 @@
 __pycache__
 cover/
 dist/
+.idea/
 .coverage
 *.m.html
